@@ -8,6 +8,52 @@ use crate::types::AnalysisResponse;
 
 const DEFAULT_COMMIT_LIMIT: usize = 1000;
 
+/// Files that should be excluded from the temporal index because they
+/// change in nearly every commit and produce misleading coupling signals.
+const IGNORED_FILENAMES: &[&str] = &[
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "Cargo.lock",
+    "Gemfile.lock",
+    "poetry.lock",
+    "composer.lock",
+    "go.sum",
+    ".DS_Store",
+    "Thumbs.db",
+];
+
+const IGNORED_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "ico", "svg", "bmp", "webp",
+    "woff", "woff2", "ttf", "eot", "otf",
+    "zip", "tar", "gz", "bz2", "xz",
+    "exe", "dll", "so", "dylib",
+    "pdf", "doc", "docx",
+    "pyc", "class", "o", "obj",
+    "min.js", "min.css",
+];
+
+/// Returns true if the file should be included in the temporal index.
+/// Filters out lock files, binary assets, and other noise.
+fn should_index_file(path: &str) -> bool {
+    // Check filename matches
+    if let Some(filename) = path.rsplit('/').next() {
+        if IGNORED_FILENAMES.contains(&filename) {
+            return false;
+        }
+    }
+
+    // Check extension matches
+    let lower = path.to_lowercase();
+    for ext in IGNORED_EXTENSIONS {
+        if lower.ends_with(&format!(".{ext}")) {
+            return false;
+        }
+    }
+
+    true
+}
+
 /// Index recent git history into the database.
 /// Returns the number of commits indexed in this call.
 pub fn index_history(
@@ -21,6 +67,8 @@ pub fn index_history(
 
     let watermark = db.get_watermark()?;
     let mut indexed = 0u32;
+
+    db.begin_transaction()?;
 
     for oid_result in revwalk {
         if indexed as usize >= commit_limit {
@@ -48,14 +96,23 @@ pub fn index_history(
             None
         };
 
-        let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
+        let mut diff_opts = git2::DiffOptions::new();
+        let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut diff_opts))?;
+
+        // Enable rename detection so coupling history survives file renames
+        let mut find_opts = git2::DiffFindOptions::new();
+        find_opts.renames(true);
+        let mut diff = diff;
+        diff.find_similar(Some(&mut find_opts))?;
 
         let mut files_in_commit: Vec<String> = Vec::new();
         diff.foreach(
             &mut |delta, _| {
                 if let Some(path) = delta.new_file().path() {
                     if let Some(path_str) = path.to_str() {
-                        files_in_commit.push(path_str.to_string());
+                        if should_index_file(path_str) {
+                            files_in_commit.push(path_str.to_string());
+                        }
                     }
                 }
                 true
@@ -77,6 +134,8 @@ pub fn index_history(
 
         indexed += 1;
     }
+
+    db.commit_transaction()?;
 
     Ok(indexed)
 }
@@ -187,6 +246,73 @@ mod tests {
     }
 
     #[test]
+    fn test_should_index_file_accepts_source_files() {
+        assert!(should_index_file("src/Auth.ts"));
+        assert!(should_index_file("lib/utils.rs"));
+        assert!(should_index_file("README.md"));
+        assert!(should_index_file("Cargo.toml"));
+        assert!(should_index_file("package.json"));
+    }
+
+    #[test]
+    fn test_should_index_file_rejects_lockfiles() {
+        assert!(!should_index_file("package-lock.json"));
+        assert!(!should_index_file("yarn.lock"));
+        assert!(!should_index_file("Cargo.lock"));
+        assert!(!should_index_file("pnpm-lock.yaml"));
+        assert!(!should_index_file("node_modules/foo/yarn.lock"));
+    }
+
+    #[test]
+    fn test_should_index_file_rejects_binaries() {
+        assert!(!should_index_file("assets/logo.png"));
+        assert!(!should_index_file("fonts/inter.woff2"));
+        assert!(!should_index_file("dist/bundle.min.js"));
+        assert!(!should_index_file("release/app.exe"));
+        assert!(!should_index_file("lib/native.so"));
+        assert!(!should_index_file("build/module.o"));
+    }
+
+    #[test]
+    fn test_should_index_file_rejects_os_files() {
+        assert!(!should_index_file(".DS_Store"));
+        assert!(!should_index_file("some/dir/.DS_Store"));
+        assert!(!should_index_file("Thumbs.db"));
+    }
+
+    #[test]
+    fn test_lockfile_filtering_in_indexing() {
+        let mut commits = Vec::new();
+
+        // Commit with source + lockfile
+        commits.push(f(&[
+            ("src/A.ts", "v0"),
+            ("package-lock.json", "lock v0"),
+        ]));
+
+        for i in 1..=5 {
+            commits.push(f(&[
+                ("src/A.ts", &format!("v{i}")),
+                ("package-lock.json", &format!("lock v{i}")),
+                ("src/B.ts", &format!("v{i}")),
+            ]));
+        }
+
+        let dir = create_test_repo(&commits);
+        let db = Database::in_memory().unwrap();
+
+        let response = analyze(dir.path(), "src/A.ts", &db).unwrap();
+
+        // package-lock.json should NOT appear as a coupled file
+        let lockfile = response.coupled_files.iter().find(|f| f.path == "package-lock.json");
+        assert!(lockfile.is_none(), "package-lock.json should be filtered out");
+
+        // B.ts should still appear as coupled
+        let b_file = response.coupled_files.iter().find(|f| f.path == "src/B.ts");
+        assert!(b_file.is_some(), "src/B.ts should still be coupled");
+    }
+
+    #[test]
     fn test_index_history_and_coupling() {
         let mut commits = Vec::new();
 
@@ -255,6 +381,58 @@ mod tests {
         // Second call should index 0 (watermark is set)
         let second_count = index_history(&repo, &db, 1000).unwrap();
         assert_eq!(second_count, 0);
+    }
+
+    #[test]
+    fn test_rename_detection() {
+        // Pre-rename: A.ts and B.ts committed together
+        // Rename: A.ts -> ARenamed.ts
+        // Post-rename: ARenamed.ts and B.ts committed together
+        // With rename detection, ARenamed.ts should still show up as a changed file
+        // (not a delete+add), preserving coupling through B.ts
+        let mut commits = Vec::new();
+
+        // Commit 0: initial with both files
+        commits.push(f(&[("src/A.ts", "v0"), ("src/B.ts", "v0")]));
+
+        // Commit 1: change both together
+        commits.push(f(&[("src/A.ts", "v1"), ("src/B.ts", "v1")]));
+
+        let dir = create_test_repo(&commits);
+
+        // Now do the rename via git2 directly
+        let repo = Repository::open(dir.path()).unwrap();
+        let sig = Signature::now("Test", "test@test.com").unwrap();
+
+        // Rename A.ts -> ARenamed.ts (copy content, remove old)
+        let old_content = fs::read_to_string(dir.path().join("src/A.ts")).unwrap();
+        fs::write(dir.path().join("src/ARenamed.ts"), &old_content).unwrap();
+        fs::remove_file(dir.path().join("src/A.ts")).unwrap();
+        // Also change B.ts so it shows up in this commit
+        fs::write(dir.path().join("src/B.ts"), "v2-after-rename").unwrap();
+
+        let mut index = repo.index().unwrap();
+        index.remove_path(Path::new("src/A.ts")).unwrap();
+        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "rename A to ARenamed", &tree, &[&parent]).unwrap();
+
+        // Index and analyze
+        let db = Database::in_memory().unwrap();
+        let indexed = index_history(&repo, &db, 1000).unwrap();
+        assert!(indexed >= 3);
+
+        // ARenamed.ts should appear in the index (from the rename commit)
+        let count = db.commit_count("src/ARenamed.ts").unwrap();
+        assert!(count >= 1, "ARenamed.ts should be indexed, got count={count}");
+
+        // B.ts should be coupled to ARenamed.ts (they were in the same rename commit)
+        let coupled = db.coupled_files("src/ARenamed.ts").unwrap();
+        let b_coupled = coupled.iter().find(|(p, _)| p == "src/B.ts");
+        assert!(b_coupled.is_some(), "B.ts should be coupled to ARenamed.ts after rename");
     }
 
     #[test]
