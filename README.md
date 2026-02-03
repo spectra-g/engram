@@ -10,7 +10,7 @@ Engram provides three MCP tools that agents can call:
 
 ### 1. `get_impact_analysis` - Predict what breaks when you change a file
 
-Analyzes git history to find files that are frequently committed alongside your target file, ranked by risk score.
+Analyzes git history to find files that are frequently committed alongside your target file, ranked by risk score. Automatically extracts test titles from coupled test files to show which existing tests may need updating.
 
 **Example:**
 ```json
@@ -23,7 +23,7 @@ Analyzes git history to find files that are frequently committed alongside your 
 **Returns:**
 ```json
 {
-  "summary": "Changing src/Auth.ts may affect 2 files. 1 critical risk, 1 medium risk.\n\n⚠️ Critical Risk (0.89): src/Session.ts\n   Changed together in 48 of 50 commits (96%)\n   Notes: Session requires Redis connection",
+  "summary": "Changing src/Auth.ts may affect 2 files. 1 critical risk, 1 medium risk.\n\n⚠️ Critical Risk (0.89): src/Session.ts\n   Changed together in 48 of 50 commits (96%)\n   Notes: Session requires Redis connection\n\n⚠ High Risk (0.72): src/Auth.test.ts\n   Changed together in 31 of 50 commits (62%)\n   Current test behavior (may need updating):\n     - should login with valid credentials\n     - should reject invalid password\n     - should handle OAuth callback",
   "formatted_files": [
     {
       "path": "src/Session.ts",
@@ -31,6 +31,17 @@ Analyzes git history to find files that are frequently committed alongside your 
       "risk_score": 0.89,
       "description": "Changed together in 48 of 50 commits (96%)",
       "memories": ["Session requires Redis connection"]
+    },
+    {
+      "path": "src/Auth.test.ts",
+      "risk_level": "High",
+      "risk_score": 0.72,
+      "description": "Changed together in 31 of 50 commits (62%)",
+      "test_intents": [
+        "should login with valid credentials",
+        "should reject invalid password",
+        "should handle OAuth callback"
+      ]
     }
   ],
   "coupled_files": [...],
@@ -102,7 +113,15 @@ Search notes by content or file path, or list all project knowledge.
 
 3. **Knowledge Graph** - Notes saved via `save_project_note` are stored in SQLite and automatically attached to coupled files in analysis results
 
-4. **LLM Formatting** - Results include both structured data and human-readable summaries with emoji risk indicators
+4. **Test Intent Extraction** - When a coupled file is a test file (detected via filename patterns), Engram extracts test titles using regex:
+   - **JS/TS**: `it('...')` and `test('...')` blocks
+   - **Rust**: `#[test] fn test_name`
+   - **Python**: `def test_name(`
+   - **Go**: `func TestName(`
+   - Caps at 5 test titles per file to stay within token budgets
+   - Presented to the AI as "Current test behavior (may need updating)" with a qualification warning
+
+5. **LLM Formatting** - Results include both structured data and human-readable summaries with emoji risk indicators
 
 ### Performance
 
@@ -201,6 +220,7 @@ engram/
 │   │   ├── persistence.rs # SQLite database layer
 │   │   ├── risk.rs      # Risk scoring algorithm
 │   │   ├── knowledge.rs # Memory (notes) business logic
+│   │   ├── test_intents.rs # Test title extraction from coupled test files
 │   │   ├── types.rs     # Core data structures
 │   │   └── cli.rs       # CLI argument parsing
 │   └── Cargo.toml
@@ -219,7 +239,7 @@ engram/
 
 ## Development Status
 
-### ✅ Completed (Phase 3A & 3B)
+### ✅ Completed (Phase 3A, 3B & 3C)
 
 - Git history indexing with incremental updates
 - Temporal coupling detection
@@ -228,10 +248,11 @@ engram/
 - Lockfile and binary filtering
 - Batch SQLite inserts for cold-start performance
 - Knowledge graph (persistent notes)
+- Test intent extraction (extracts test titles from coupled test files)
 - LLM-friendly formatted output with risk classification
 - Token budgeting (top 5 display, top 10 hard cap)
 - Full MCP protocol implementation
-- Comprehensive test coverage (77 tests: 38 Rust + 24 adapter + 15 E2E)
+- Comprehensive test coverage (103 tests: 52 Rust + 26 adapter + 25 E2E)
 - Tuned risk scoring: coupling-first weighting with gate to prevent low-coupling files from being marked Critical
 
 ### 📋 Planned Future Work

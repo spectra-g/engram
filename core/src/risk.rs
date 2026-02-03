@@ -71,6 +71,7 @@ pub fn score_coupled_files(
                 co_change_count: f.co_change_count,
                 risk_score,
                 memories: Vec::new(),
+                test_intents: Vec::new(),
             }
         })
         .filter(|f| f.risk_score > 0.0)

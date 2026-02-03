@@ -3,6 +3,7 @@ pub mod knowledge;
 pub mod persistence;
 pub mod risk;
 pub mod temporal;
+pub mod test_intents;
 pub mod types;
 
 use std::path::Path;
@@ -27,6 +28,7 @@ pub fn analyze(
     let db = open_db(repo_root)?;
     let mut response = temporal::analyze(repo_root, file_path, &db)?;
     knowledge::enrich_with_memories(&db, &mut response.coupled_files);
+    test_intents::enrich_with_test_intents(repo_root, &mut response.coupled_files);
     Ok(response)
 }
 

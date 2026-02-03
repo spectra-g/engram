@@ -74,6 +74,7 @@ mod tests {
                 co_change_count: 48,
                 risk_score: 0.89,
                 memories: Vec::new(),
+                test_intents: Vec::new(),
             },
             CoupledFile {
                 path: "src/Utils.ts".to_string(),
@@ -81,6 +82,7 @@ mod tests {
                 co_change_count: 1,
                 risk_score: 0.2,
                 memories: Vec::new(),
+                test_intents: Vec::new(),
             },
         ];
 

@@ -54,6 +54,12 @@ export function buildFileDetails(files: FormattedCoupledFile[]): string {
       if (f.memories && f.memories.length > 0) {
         line += `\n   Notes: ${f.memories.join("; ")}`;
       }
+      if (f.test_intents && f.test_intents.length > 0) {
+        line += `\n   Current test behavior (may need updating):`;
+        for (const intent of f.test_intents) {
+          line += `\n     - ${intent}`;
+        }
+      }
       return line;
     })
     .join("\n\n");
@@ -76,6 +82,9 @@ export function formatAnalysisResponse(response: AnalysisResponse): string {
     };
     if (f.memories && f.memories.length > 0) {
       formatted.memories = f.memories.map((m) => m.content);
+    }
+    if (f.test_intents && f.test_intents.length > 0) {
+      formatted.test_intents = f.test_intents.map((t) => t.title);
     }
     return formatted;
   });
