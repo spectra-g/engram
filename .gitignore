@@ -1,0 +1,23 @@
+# Rust
+target/
+
+# Node
+node_modules/
+dist/
+
+# Engram
+.engram/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+
+# Coverage
+lcov.info
+coverage/
+
+.claude

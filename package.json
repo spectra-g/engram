@@ -1,0 +1,14 @@
+{
+  "name": "engram",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build:core": "export PATH=\"$HOME/.cargo/bin:$PATH\" && cd core && cargo build --release",
+    "build:adapter": "cd adapter && npm run build",
+    "build:all": "npm run build:core && npm run build:adapter",
+    "test:core": "export PATH=\"$HOME/.cargo/bin:$PATH\" && cd core && cargo test",
+    "test:adapter": "cd adapter && npm test",
+    "test:e2e": "cd e2e && npm test",
+    "test:all": "npm run test:core && npm run test:adapter && npm run test:e2e"
+  }
+}

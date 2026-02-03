@@ -1,0 +1,14 @@
+{
+  "name": "engram-fixtures",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/repo-generator.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
