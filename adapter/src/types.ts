@@ -6,12 +6,17 @@ export interface Memory {
   created_at: string;
 }
 
+export interface TestIntent {
+  title: string;
+}
+
 export interface CoupledFile {
   path: string;
   coupling_score: number;
   co_change_count: number;
   risk_score: number;
   memories?: Memory[];
+  test_intents?: TestIntent[];
 }
 
 export interface AnalysisResponse {
@@ -41,6 +46,7 @@ export interface FormattedCoupledFile {
   risk_score: number;
   description: string;
   memories?: string[];
+  test_intents?: string[];
 }
 
 export interface FormattedAnalysisResponse extends AnalysisResponse {

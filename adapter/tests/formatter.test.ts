@@ -133,4 +133,28 @@ describe("formatAnalysisResponse", () => {
     expect(parsed.formatted_files[0].memories).toEqual(["Important note"]);
     expect(parsed.summary).toContain("Notes:");
   });
+
+  it("should include test_intents in formatted output when present", () => {
+    const response = makeResponse(1);
+    response.coupled_files[0].test_intents = [
+      { title: "should login with valid credentials" },
+      { title: "should reject invalid password" },
+    ];
+    const parsed = JSON.parse(formatAnalysisResponse(response));
+
+    expect(parsed.formatted_files[0].test_intents).toEqual([
+      "should login with valid credentials",
+      "should reject invalid password",
+    ]);
+    expect(parsed.summary).toContain("Current test behavior (may need updating):");
+    expect(parsed.summary).toContain("- should login with valid credentials");
+  });
+
+  it("should omit test_intents key when not present", () => {
+    const response = makeResponse(1);
+    const parsed = JSON.parse(formatAnalysisResponse(response));
+
+    expect(parsed.formatted_files[0].test_intents).toBeUndefined();
+    expect(parsed.summary).not.toContain("Current test behavior");
+  });
 });

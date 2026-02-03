@@ -16,6 +16,11 @@ pub struct AnalysisResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TestIntent {
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoupledFile {
     pub path: String,
     pub coupling_score: f64,
@@ -23,6 +28,8 @@ pub struct CoupledFile {
     pub risk_score: f64,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub memories: Vec<Memory>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub test_intents: Vec<TestIntent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

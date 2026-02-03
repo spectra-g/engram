@@ -86,6 +86,18 @@ impl Database {
         Ok(())
     }
 
+    /// Begin an explicit transaction for batch inserts.
+    pub fn begin_transaction(&self) -> Result<(), rusqlite::Error> {
+        self.conn.execute_batch("BEGIN")?;
+        Ok(())
+    }
+
+    /// Commit the current transaction.
+    pub fn commit_transaction(&self) -> Result<(), rusqlite::Error> {
+        self.conn.execute_batch("COMMIT")?;
+        Ok(())
+    }
+
     /// Insert files changed in a single commit.
     pub fn insert_commit(
         &self,
@@ -478,6 +490,20 @@ mod tests {
         let filtered = db.list_memories(Some("src/A.ts")).unwrap();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].content, "Note A");
+    }
+
+    #[test]
+    fn test_batch_transaction_inserts() {
+        let db = Database::in_memory().unwrap();
+
+        db.begin_transaction().unwrap();
+        for i in 0..100 {
+            db.insert_commit(&format!("c{i}"), &["batch.ts"], i as i64 * 100).unwrap();
+        }
+        db.commit_transaction().unwrap();
+
+        let count = db.commit_count("batch.ts").unwrap();
+        assert_eq!(count, 100, "all 100 commits should be present after commit");
     }
 
     #[test]
