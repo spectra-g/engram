@@ -86,3 +86,27 @@ export interface ListNotesResponse {
   file_path?: string;
   memories: Memory[];
 }
+
+export interface MetricsSummary {
+  total_analyses: number;
+  notes_created: number;
+  searches_performed: number;
+  lists_performed: number;
+  total_coupled_files: number;
+  critical_risk_count: number;
+  high_risk_count: number;
+  medium_risk_count: number;
+  low_risk_count: number;
+  test_files_found: number;
+  test_intents_extracted: number;
+  avg_analysis_time_ms: number;
+}
+
+export interface MetricsResponse {
+  repo_root: string;
+  summary: MetricsSummary;
+}
+
+export interface GetMetricsRequest {
+  repo_root: string;
+}
