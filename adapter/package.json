@@ -1,14 +1,42 @@
 {
-  "name": "engram-adapter",
+  "name": "@spectra-g/engram-adapter",
   "version": "0.1.0",
-  "private": true,
+  "description": "MCP adapter for Engram - organizational memory for AI agents",
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "engram-adapter": "./dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "engram",
+    "ai",
+    "git-analysis",
+    "claude",
+    "cursor"
+  ],
+  "author": "spectra-g",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spectra-g/engram.git",
+    "directory": "adapter"
+  },
+  "homepage": "https://github.com/spectra-g/engram#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^4.3.6"
