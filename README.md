@@ -1,26 +1,44 @@
 # Engram
 
-**Context brain for your Agentic flow**
+**The "Blast Radius" Detector for AI Agents.**
 
-Engram helps AI agents understand the blast radius of code changes by analyzing git commit history to detect temporal coupling between files. When files are frequently changed together, it's a signal they're related - even if there's no direct code dependency.
+Engram gives your AI agent (Claude, Cursor, etc.) the one thing it lacks: **Organizational Memory.**
+
+By analyzing your git history and project notes, Engram predicts what will break *before* the AI writes a single line of code. It detects files that are secretly coupled, even if they don't import each other directly, preventing the "fix one thing, break another" cycle.
 
 ## What It Does
 
-Engram provides three MCP tools that agents can call:
+**Temporal graph**
+* Analyzes git history to find files that are frequently committed alongside your target file, ranked by risk score.
+* **Why?** To predict what might break when you change a file.
 
-### 1. `get_impact_analysis` - Predict what breaks when you change a file
+**Test Intent**
+* Automatically finds the specific tests associated with the files you are changing and reads their descriptions (e.g., "should handle negative balance").
+* **Why?** It forces the AI to read the rules before it plays the game.
 
-Analyzes git history to find files that are frequently committed alongside your target file, ranked by risk score. Automatically extracts test titles from coupled test files to show which existing tests may need updating.
+**Knowledge graph**
+
+* Provides a persistence store where either you or the LLM can store/retrieve relevant notes concerning decisions, nuances, quirks, architecture etc
+* Why? Lessons learnt aren't lost when you start a new conversation.
+
+**Tool calls**
+
+### 1. `get_impact_analysis` - Blast radius calculation for a target file
+
+For a given file, return the impacted files, their test intents and any stored notes.
 
 **Example:**
+
 ```json
 {
   "file_path": "src/Auth.ts",
   "repo_root": "/path/to/repo"
 }
+
 ```
 
 **Returns:**
+
 ```json
 {
   "summary": "Changing src/Auth.ts may affect 2 files. 1 critical risk, 1 medium risk.\n\n⚠️ Critical Risk (0.89): src/Session.ts\n   Changed together in 48 of 50 commits (96%)\n   Notes: Session requires Redis connection\n\n⚠ High Risk (0.72): src/Auth.test.ts\n   Changed together in 31 of 50 commits (62%)\n   Current test behavior (may need updating):\n     - should login with valid credentials\n     - should reject invalid password\n     - should handle OAuth callback",
@@ -47,6 +65,7 @@ Analyzes git history to find files that are frequently committed alongside your 
   "coupled_files": [...],
   "commit_count": 50
 }
+
 ```
 
 ### 2. `save_project_note` - Remember context about files
@@ -54,12 +73,14 @@ Analyzes git history to find files that are frequently committed alongside your 
 Store persistent notes that automatically appear in future impact analyses.
 
 **Example:**
+
 ```json
 {
   "file_path": "src/Auth.ts",
   "note": "Uses JWT tokens, must validate expiry timestamp",
   "repo_root": "/path/to/repo"
 }
+
 ```
 
 ### 3. `read_project_notes` - Retrieve saved context
@@ -67,11 +88,13 @@ Store persistent notes that automatically appear in future impact analyses.
 Search notes by content or file path, or list all project knowledge.
 
 **Example:**
+
 ```json
 {
   "query": "Redis",
   "repo_root": "/path/to/repo"
 }
+
 ```
 
 ## How It Works
@@ -79,6 +102,7 @@ Search notes by content or file path, or list all project knowledge.
 ### Architecture
 
 ```
+
 ┌─────────────┐
 │ AI Agent    │ ← MCP protocol over stdio
 └──────┬──────┘
@@ -96,46 +120,30 @@ Search notes by content or file path, or list all project knowledge.
 ┌──────▼──────────────┐
 │ .engram/engram.db   │ ← Persistent SQLite database
 └─────────────────────┘
+
 ```
 
-### The Analysis Flow
+### Under the Hood
 
-1. **Git Indexing** - Walks up to 1000 recent commits, storing which files changed together in each commit
-   - Incremental (watermark-based) - only indexes new commits on subsequent runs
-   - Filters out lockfiles (`package-lock.json`, `Cargo.lock`, etc.) and binaries to reduce noise
-   - Detects file renames to preserve coupling history
+Engram is designed to be low-latency and zero-config.
 
-2. **Risk Scoring** - Each coupled file gets a 0-1 risk score based on:
-   - **Coupling** (50% weight) - What % of target's commits include this file
-   - **Churn** (30% weight) - How actively the file is modified
-   - **Recency** (20% weight) - How recently it was changed with the target
-   - **Coupling gate**: Files with <50% coupling cannot be classified as "Critical" (capped at High risk max)
-
-3. **Knowledge Graph** - Notes saved via `save_project_note` are stored in SQLite and automatically attached to coupled files in analysis results
-
-4. **Test Intent Extraction** - When a coupled file is a test file (detected via filename patterns), Engram extracts test titles using regex:
-   - **JS/TS**: `it('...')` and `test('...')` blocks
-   - **Rust**: `#[test] fn test_name`
-   - **Python**: `def test_name(`
-   - **Go**: `func TestName(`
-   - Caps at 5 test titles per file to stay within token budgets
-   - Presented to the AI as "Current test behavior (may need updating)" with a qualification warning
-
-5. **LLM Formatting** - Results include both structured data and human-readable summaries with emoji risk indicators
+1.  **Smart Indexing:** Engram scans your git history incrementally in the background. It automatically filters out "noise" (like `package-lock.json` or binary files) and tracks file renames to ensure the history is accurate.
+2.  **The Risk Algorithm:** We don't just count commits. Engram calculates a **Risk Score (0-1)** based on **Coupling** (frequency) and **Recency** (how lately it happened).
+3.  **Context Injection:** Finally, it combines these insights with your stored notes and relevant test names, formatting them into a concise summary that fits perfectly within the AI's context window.
 
 ### Performance
 
-- **Cold start** (first run): < 2 seconds (includes full git indexing)
-- **Warm path** (cached DB): < 200ms
-- All data stored locally in `.engram/engram.db` at the repo root
+-  **Cold start** (first run): < 2 seconds (includes full git indexing)
+-  **Warm path** (cached DB): < 200ms
+-  All data stored locally in `.engram/engram.db` at the repo root
 
 ## Installation & Usage
 
 ### Prerequisites
 
-- Rust (1.70+)
-- Node.js (18+)
-- Git repository
+-  Rust (1.70+)
+-  Node.js (18+)
+-  Git repository
 
 ### Build
 
@@ -148,6 +156,7 @@ npm run build:adapter
 
 # Or build both
 npm run build:all
+
 ```
 
 ### Running Tests
@@ -160,13 +169,14 @@ npm run test:all
 npm run test:core      # Rust unit tests
 npm run test:adapter   # TypeScript unit tests
 npm run test:e2e       # End-to-end integration tests
+
 ```
 
 ### Using with MCP Clients
 
-#### Claude Desktop
+#### 1. For Claude Code (CLI)
 
-Add to your Claude Desktop MCP config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Register Engram with Claude Code, add to your config (`~/.claude.json` on macOS):
 
 ```json
 {
@@ -175,14 +185,58 @@ Add to your Claude Desktop MCP config (`~/Library/Application Support/Claude/cla
       "command": "node",
       "args": ["/path/to/engram/adapter/dist/index.js"],
       "env": {
-        "ENGRAM_CORE_BINARY": "/path/to/engram/core/target/release/engram-core"
+        "ENGRAM_CORE_BINARY": "/path/to/engram/target/release/engram-core"
       }
     }
   }
 }
 ```
+To make the AI use Engram automatically, you must give it a "System Instruction."
 
-Then restart Claude Desktop. The three tools will be available to Claude.
+1. Open (or create) the file `CLAUDE.md` in your project root.
+2. Paste the following rule exactly:
+
+```markdown
+## Engram Workflow Policy
+You have access to a tool called `engram` (specifically `get_impact_analysis` and `save_project_note`).
+You MUST follow this strictly sequential workflow for EVERY code modification request:
+
+### Phase 1: Analysis (MANDATORY START)
+1.  **Blast Radius Check**: Before reading code or proposing changes, you MUST call `get_impact_analysis` on the target file(s).
+2.  **Context Loading**: If the analysis reveals "High" or "Critical" risk coupled files, you must read those files (`read_file`) to prevent regressions.
+3.  **Review Notes**: Pay close attention to any "Memories" returned in the analysis summary.
+
+### Phase 2: Execution
+4.  **Fix/Refactor**: Proceed with the code changes.
+
+### Phase 3: Knowledge Capture (MANDATORY END)
+5.  **Save Learnings**: Before finishing, ask: *"Did I discover a hidden dependency, a tricky bug cause, or an architectural quirk?"*
+    - **IF YES**: You MUST use `save_project_note` to persist this context for future sessions.
+    - **IF NO**: Proceed to completion.
+
+NEVER skip Step 1. NEVER skip Step 5 if valuable context was gained.
+```
+
+Then restart Claude Code. The tools will be available to Claude.
+
+#### 2. For Cursor
+To get Engram running in Cursor, you can add it via the Cursor Settings. Here is how you do it:
+
+1. Open MCP Settings
+2. Open Cursor and go to Settings (the gear icon in the top right, or Cmd + Shift + J on macOS / Ctrl + Shift + J on Windows).
+3. Navigate to General > MCP Servers.
+4. Add the New Server
+5. Click on "+ Add New MCP Server" and fill in the details based on your config:
+   1. Name: `engram`
+   2. Type: `command`
+   3. Command: `ENGRAM_CORE_BINARY=/path/to/engram/target/release/engram-core node /path/to/engram/adapter/dist/index.js`
+
+To make the AI use Engram automatically, you must give it a "System Instruction."
+
+1. Create a file named `.cursorrules` in your project root.
+2. Paste the exact same text block shown above (from the Claude section) into this file.
+
+*Note: Without this file, the AI will likely be "lazy" and skip the analysis step to save time.*
 
 #### Other MCP Clients
 
@@ -197,7 +251,7 @@ const transport = new StdioClientTransport({
   command: "node",
   args: ["/path/to/engram/adapter/dist/index.js"],
   env: {
-    ENGRAM_CORE_BINARY: "/path/to/engram/core/target/release/engram-core"
+    ENGRAM_CORE_BINARY: "/path/to/engram/target/release/engram-core"
   }
 });
 
@@ -206,77 +260,37 @@ const result = await client.callTool({
   name: "get_impact_analysis",
   arguments: { file_path: "src/Auth.ts", repo_root: "/path/to/repo" }
 });
-```
 
-## Project Structure
-
-```
-engram/
-├── core/                 # Rust binary (git indexing, SQLite, risk scoring)
-│   ├── src/
-│   │   ├── main.rs      # CLI routing
-│   │   ├── lib.rs       # Public API
-│   │   ├── temporal.rs  # Git history indexing
-│   │   ├── persistence.rs # SQLite database layer
-│   │   ├── risk.rs      # Risk scoring algorithm
-│   │   ├── knowledge.rs # Memory (notes) business logic
-│   │   ├── test_intents.rs # Test title extraction from coupled test files
-│   │   ├── types.rs     # Core data structures
-│   │   └── cli.rs       # CLI argument parsing
-│   └── Cargo.toml
-├── adapter/              # TypeScript MCP adapter
-│   ├── src/
-│   │   ├── index.ts     # Entry point
-│   │   ├── mcp-server.ts # Tool registration
-│   │   ├── process-bridge.ts # Spawns Rust binary
-│   │   ├── formatter.ts # LLM-friendly output formatting
-│   │   └── types.ts     # TypeScript type definitions
-│   └── package.json
-├── e2e/                  # End-to-end integration tests
-├── fixtures/             # Test repository generators
-└── package.json          # Root workspace scripts
 ```
 
 ## Development Status
 
-### ✅ Completed (Phase 3A, 3B & 3C)
-
-- Git history indexing with incremental updates
-- Temporal coupling detection
-- Multi-factor risk scoring (churn + recency + coupling)
-- Rename detection (coupling history survives file renames)
-- Lockfile and binary filtering
-- Batch SQLite inserts for cold-start performance
-- Knowledge graph (persistent notes)
-- Test intent extraction (extracts test titles from coupled test files)
-- LLM-friendly formatted output with risk classification
-- Token budgeting (top 5 display, top 10 hard cap)
-- Full MCP protocol implementation
-- Comprehensive test coverage (103 tests: 52 Rust + 26 adapter + 25 E2E)
-- Tuned risk scoring: coupling-first weighting with gate to prevent low-coupling files from being marked Critical
-
 ### 📋 Planned Future Work
 
-- Distribution strategy (npm package + binary downloads)
-- Zombie process cleanup on adapter crash
-- Validation/coverage graph (deferred - scope too large for MVP)
-- Support for monorepos (multiple projects in one repo)
-- Configurable ignore patterns (custom lockfile/binary lists)
+-  Distribution strategy (npm package + binary downloads)
+-  Zombie process cleanup on adapter crash
+-  LCOV / Full Code Coverage Integration (Deep validation)
+-  Support for monorepos (multiple projects in one repo)
+-  Configurable ignore patterns (custom lockfile/binary lists)
 
 ## Testing Strategy
 
 The project uses a rigorous testing approach:
 
-- **Rust unit tests** - Test individual functions in isolation
-- **Adapter unit tests** - Mock the Rust binary, test TypeScript logic
-- **E2E tests** - Generate real git repositories with deterministic commit histories, run full analysis cycles
+-  **Rust unit tests** - Test individual functions in isolation
+-  **Adapter unit tests** - Mock the Rust binary, test TypeScript logic
+-  **E2E tests** - Generate real git repositories with deterministic commit histories, run full analysis cycles
+- **Performance tests** - Confirm all flows work to max 200ms latency
 
 All tests run in CI via `npm run test:all`.
 
 ## Contributing
 
-This is an experimental project focused on helping AI agents understand codebases through temporal coupling analysis. Contributions welcome.
+Contributions welcome.
 
 ## License
 
-MIT
+**PolyForm Noncommercial License 1.0**
+
+*   **Free** for personal use, non-profits, and educational organizations.
+*   **Commercial Use:** For-profit organizations require a [Commercial License](https://engrampro.net).
