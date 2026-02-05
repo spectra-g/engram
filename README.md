@@ -6,6 +6,17 @@ Engram gives your AI agent (Claude, Cursor, etc.) the one thing it lacks: **Orga
 
 By analyzing your git history and project notes, Engram predicts what will break *before* the AI writes a single line of code. It detects files that are secretly coupled, even if they don't import each other directly, preventing the "fix one thing, break another" cycle.
 
+## Built for Privacy. Public for Integrity.
+
+This tool handles your most sensitive asset: your source code. To prove that your data never leaves your machine, the source code for Engram is publicly auditable.
+
+### Data Integrity Guarantee
+
+*   **Local-First:** All processing happens on your local hardware.
+*   **Zero Telemetry:** We do not track your usage, your repository names, or your identity.
+*   **No Phone-Home:** The application does not have a "backend" where your code is uploaded.
+*   **Audit it yourself:** You can search this repository for any networking or `fetch`/`curl` calls.
+
 ## What It Does
 
 **Temporal graph**
@@ -286,11 +297,22 @@ All tests run in CI via `npm run test:all`.
 
 ## Contributing
 
-Contributions welcome.
+We welcome bug reports and community fixes. Please note that by contributing to this repository, you grant spectra-g a perpetual, irrevocable license to include your changes in both the public source and the commercially licensed versions of the software.
 
-## License
+## License & Commercial Use
 
-**PolyForm Noncommercial License 1.0**
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
 
-*   **Free** for personal use, non-profits, and educational organizations.
-*   **Commercial Use:** For-profit organizations require a [Commercial License](https://engrampro.net).
+### Personal & Non-Profit Use
+If you are using this for **personal hobby projects**, **non-profit organizations**, or **educational research**, it is completely free. We encourage you to audit the source code to see how we handle your data.
+
+### Professional & Commercial Use
+If you are using this tool in a **for-profit workplace** (at your job, for your company, or as a freelancer for a client), **a commercial license is required**.
+
+**This includes work on commercial open-source projects.** If you are paid to write code, you need a license.
+
+Using this tool for commercial work without a license requires a commercial license agreement.
+
+**[Purchase a Commercial License](https://engrampro.net/#pricing)**
+
+**[View the Full License Text](LICENSE)**
