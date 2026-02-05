@@ -1,6 +1,6 @@
 {
   "name": "@spectra-g/engram-adapter",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP adapter for Engram - organizational memory for AI agents",
   "private": false,
   "type": "module",
@@ -42,11 +42,11 @@
     "zod": "^4.3.6"
   },
   "optionalDependencies": {
-    "@spectra-g/engram-core-darwin-arm64": "0.2.0",
-    "@spectra-g/engram-core-darwin-x64": "0.2.0",
-    "@spectra-g/engram-core-linux-x64": "0.2.0",
-    "@spectra-g/engram-core-linux-arm64": "0.2.0",
-    "@spectra-g/engram-core-win32-x64": "0.2.0"
+    "@spectra-g/engram-core-darwin-arm64": "0.2.1",
+    "@spectra-g/engram-core-darwin-x64": "0.2.1",
+    "@spectra-g/engram-core-linux-x64": "0.2.1",
+    "@spectra-g/engram-core-linux-arm64": "0.2.1",
+    "@spectra-g/engram-core-win32-x64": "0.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
