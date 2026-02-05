@@ -10,6 +10,8 @@ import type {
   SearchNotesResponse,
   ListNotesRequest,
   ListNotesResponse,
+  GetMetricsRequest,
+  MetricsResponse,
   ProcessResult,
 } from "./types.js";
 
@@ -17,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_BINARY_PATH = resolve(
   __dirname,
-  "../../core/target/release/engram-core"
+  "../../target/release/engram-core"
 );
 
 const TIMEOUT_MS = 5000;
@@ -168,6 +170,30 @@ export async function listNotes(
 
   try {
     return JSON.parse(result.stdout) as ListNotesResponse;
+  } catch {
+    throw new Error(
+      `Failed to parse engram-core output: ${result.stdout.slice(0, 200)}`
+    );
+  }
+}
+
+export async function getMetrics(
+  request: GetMetricsRequest
+): Promise<MetricsResponse> {
+  const result = await runCore([
+    "get-metrics",
+    "--repo-root",
+    request.repo_root,
+  ]);
+
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `engram-core exited with code ${result.exitCode}: ${result.stderr}`
+    );
+  }
+
+  try {
+    return JSON.parse(result.stdout) as MetricsResponse;
   } catch {
     throw new Error(
       `Failed to parse engram-core output: ${result.stdout.slice(0, 200)}`

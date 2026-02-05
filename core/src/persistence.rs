@@ -55,7 +55,32 @@ impl Database {
             );
 
             CREATE INDEX IF NOT EXISTS idx_memories_file
-                ON memories(file_path);",
+                ON memories(file_path);
+
+            CREATE TABLE IF NOT EXISTS metrics_events (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type          TEXT NOT NULL,
+                timestamp           DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+                file_path           TEXT,
+                coupled_files_count INTEGER DEFAULT 0,
+                critical_count      INTEGER DEFAULT 0,
+                high_count          INTEGER DEFAULT 0,
+                medium_count        INTEGER DEFAULT 0,
+                low_count           INTEGER DEFAULT 0,
+                test_files_found    INTEGER DEFAULT 0,
+                test_intents_total  INTEGER DEFAULT 0,
+                commit_count        INTEGER DEFAULT 0,
+                analysis_time_ms    INTEGER DEFAULT 0,
+
+                note_id             INTEGER,
+
+                repo_root           TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_metrics_event_type ON metrics_events(event_type);
+            CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON metrics_events(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_metrics_repo ON metrics_events(repo_root);",
         )?;
         Ok(())
     }
@@ -306,6 +331,93 @@ impl Database {
             }
         }
     }
+
+    /// Insert a metrics event.
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_metrics_event(
+        &self,
+        event_type: &str,
+        file_path: Option<&str>,
+        coupled_files_count: u32,
+        critical_count: u32,
+        high_count: u32,
+        medium_count: u32,
+        low_count: u32,
+        test_files_found: u32,
+        test_intents_total: u32,
+        commit_count: u32,
+        analysis_time_ms: u64,
+        note_id: Option<i64>,
+        repo_root: &str,
+    ) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "INSERT INTO metrics_events (
+                event_type, file_path, coupled_files_count,
+                critical_count, high_count, medium_count, low_count,
+                test_files_found, test_intents_total, commit_count,
+                analysis_time_ms, note_id, repo_root
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![
+                event_type,
+                file_path,
+                coupled_files_count,
+                critical_count,
+                high_count,
+                medium_count,
+                low_count,
+                test_files_found,
+                test_intents_total,
+                commit_count,
+                analysis_time_ms as i64,
+                note_id,
+                repo_root,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Get aggregated metrics summary for a repository.
+    pub fn get_metrics_summary(
+        &self,
+        repo_root: &str,
+    ) -> Result<crate::types::MetricsSummary, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                COUNT(*) FILTER (WHERE event_type = 'analysis') as total_analyses,
+                COUNT(*) FILTER (WHERE event_type = 'add_note') as notes_created,
+                COUNT(*) FILTER (WHERE event_type = 'search_notes') as searches_performed,
+                COUNT(*) FILTER (WHERE event_type = 'list_notes') as lists_performed,
+                COALESCE(SUM(coupled_files_count), 0) as total_coupled_files,
+                COALESCE(SUM(critical_count), 0) as critical_risk_count,
+                COALESCE(SUM(high_count), 0) as high_risk_count,
+                COALESCE(SUM(medium_count), 0) as medium_risk_count,
+                COALESCE(SUM(low_count), 0) as low_risk_count,
+                COALESCE(SUM(test_files_found), 0) as test_files_found,
+                COALESCE(SUM(test_intents_total), 0) as test_intents_extracted,
+                COALESCE(AVG(analysis_time_ms) FILTER (WHERE event_type = 'analysis'), 0) as avg_analysis_time_ms
+            FROM metrics_events
+            WHERE repo_root = ?1",
+        )?;
+
+        let summary = stmt.query_row(params![repo_root], |row| {
+            Ok(crate::types::MetricsSummary {
+                total_analyses: row.get::<_, i64>(0)? as u32,
+                notes_created: row.get::<_, i64>(1)? as u32,
+                searches_performed: row.get::<_, i64>(2)? as u32,
+                lists_performed: row.get::<_, i64>(3)? as u32,
+                total_coupled_files: row.get::<_, i64>(4)? as u32,
+                critical_risk_count: row.get::<_, i64>(5)? as u32,
+                high_risk_count: row.get::<_, i64>(6)? as u32,
+                medium_risk_count: row.get::<_, i64>(7)? as u32,
+                low_risk_count: row.get::<_, i64>(8)? as u32,
+                test_files_found: row.get::<_, i64>(9)? as u32,
+                test_intents_extracted: row.get::<_, i64>(10)? as u32,
+                avg_analysis_time_ms: row.get::<_, f64>(11)? as u64,
+            })
+        })?;
+
+        Ok(summary)
+    }
 }
 
 #[cfg(test)]
@@ -514,5 +626,136 @@ mod tests {
 
         let search = db.search_memories("nothing").unwrap();
         assert!(search.is_empty());
+    }
+
+    #[test]
+    fn test_insert_and_query_metrics() {
+        let db = Database::in_memory().unwrap();
+
+        // Insert an analysis event
+        db.insert_metrics_event(
+            "analysis",
+            Some("src/A.ts"),
+            5,  // coupled_files_count
+            1,  // critical_count
+            2,  // high_count
+            1,  // medium_count
+            1,  // low_count
+            2,  // test_files_found
+            5,  // test_intents_total
+            10, // commit_count
+            150, // analysis_time_ms
+            None,
+            "/repo/root",
+        )
+        .unwrap();
+
+        // Insert another analysis event
+        db.insert_metrics_event(
+            "analysis",
+            Some("src/B.ts"),
+            3,
+            0,
+            1,
+            1,
+            1,
+            1,
+            3,
+            5,
+            100,
+            None,
+            "/repo/root",
+        )
+        .unwrap();
+
+        // Insert a note event
+        db.insert_metrics_event(
+            "add_note",
+            Some("src/C.ts"),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Some(1),
+            "/repo/root",
+        )
+        .unwrap();
+
+        // Query summary
+        let summary = db.get_metrics_summary("/repo/root").unwrap();
+        assert_eq!(summary.total_analyses, 2);
+        assert_eq!(summary.notes_created, 1);
+        assert_eq!(summary.total_coupled_files, 8);
+        assert_eq!(summary.critical_risk_count, 1);
+        assert_eq!(summary.high_risk_count, 3);
+        assert_eq!(summary.medium_risk_count, 2);
+        assert_eq!(summary.low_risk_count, 2);
+        assert_eq!(summary.test_files_found, 3);
+        assert_eq!(summary.test_intents_extracted, 8);
+        assert_eq!(summary.avg_analysis_time_ms, 125); // (150 + 100) / 2
+    }
+
+    #[test]
+    fn test_metrics_aggregation() {
+        let db = Database::in_memory().unwrap();
+
+        // Insert events for multiple repos
+        db.insert_metrics_event(
+            "analysis",
+            Some("src/A.ts"),
+            2,
+            1,
+            0,
+            0,
+            1,
+            1,
+            2,
+            5,
+            100,
+            None,
+            "/repo1",
+        )
+        .unwrap();
+
+        db.insert_metrics_event(
+            "analysis",
+            Some("src/B.ts"),
+            3,
+            0,
+            1,
+            1,
+            1,
+            1,
+            3,
+            8,
+            200,
+            None,
+            "/repo2",
+        )
+        .unwrap();
+
+        // Each repo should have isolated metrics
+        let summary1 = db.get_metrics_summary("/repo1").unwrap();
+        assert_eq!(summary1.total_analyses, 1);
+        assert_eq!(summary1.total_coupled_files, 2);
+
+        let summary2 = db.get_metrics_summary("/repo2").unwrap();
+        assert_eq!(summary2.total_analyses, 1);
+        assert_eq!(summary2.total_coupled_files, 3);
+    }
+
+    #[test]
+    fn test_empty_metrics() {
+        let db = Database::in_memory().unwrap();
+        let summary = db.get_metrics_summary("/nonexistent").unwrap();
+        assert_eq!(summary.total_analyses, 0);
+        assert_eq!(summary.notes_created, 0);
+        assert_eq!(summary.total_coupled_files, 0);
+        assert_eq!(summary.avg_analysis_time_ms, 0);
     }
 }

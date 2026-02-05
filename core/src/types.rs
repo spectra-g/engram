@@ -59,3 +59,25 @@ pub struct ListNotesResponse {
     pub file_path: Option<String>,
     pub memories: Vec<Memory>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricsSummary {
+    pub total_analyses: u32,
+    pub notes_created: u32,
+    pub searches_performed: u32,
+    pub lists_performed: u32,
+    pub total_coupled_files: u32,
+    pub critical_risk_count: u32,
+    pub high_risk_count: u32,
+    pub medium_risk_count: u32,
+    pub low_risk_count: u32,
+    pub test_files_found: u32,
+    pub test_intents_extracted: u32,
+    pub avg_analysis_time_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricsResponse {
+    pub repo_root: String,
+    pub summary: MetricsSummary,
+}

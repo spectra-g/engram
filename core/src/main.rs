@@ -29,6 +29,10 @@ fn run() -> Result<String, Box<dyn std::error::Error>> {
             let response = engram_core::list_notes(Path::new(&repo_root), file.as_deref())?;
             Ok(serde_json::to_string(&response)?)
         }
+        Command::GetMetrics { repo_root } => {
+            let response = engram_core::get_metrics(Path::new(&repo_root))?;
+            Ok(serde_json::to_string(&response)?)
+        }
     }
 }
 

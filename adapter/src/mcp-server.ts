@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { analyze, addNote, searchNotes, listNotes } from "./process-bridge.js";
+import { analyze, addNote, searchNotes, listNotes, getMetrics } from "./process-bridge.js";
 import { formatAnalysisResponse } from "./formatter.js";
 
 export function createMcpServer(): McpServer {
@@ -13,7 +13,7 @@ export function createMcpServer(): McpServer {
     "get_impact_analysis",
     {
       description:
-        "Analyze the blast radius of a file change. Returns files that are frequently co-committed (coupled) with the target file.",
+        "Analyzes the blast radius and coupling of files to prevent breaking changes. This tool reveals which other files are frequently co-committed with the target file, helping you understand what else might be affected by your changes. Use cases: bug fixes, feature additions, refactoring, code review.",
       inputSchema: {
         file_path: z.string().describe("Path to the file to analyze, relative to repo root"),
         repo_root: z.string().describe("Absolute path to the git repository root"),
@@ -50,7 +50,7 @@ export function createMcpServer(): McpServer {
     "save_project_note",
     {
       description:
-        "Save a note (memory) about a file or symbol for future reference. Notes are stored persistently and will appear in impact analysis results.",
+        "Save important context, decisions, or learnings about a file or symbol for future reference. Use this when you discover important information about code behavior, architectural decisions, bug fixes, or gotchas that would be valuable for future work. Notes are stored persistently and will appear in future impact analysis results.",
       inputSchema: {
         file_path: z.string().describe("File path the note relates to"),
         note: z.string().describe("The note content to save"),
@@ -94,7 +94,7 @@ export function createMcpServer(): McpServer {
     "read_project_notes",
     {
       description:
-        "Read project notes (memories). Search by query text, filter by file path, or list all notes.",
+        "Read project notes (memories) about files before working on them. Use this when starting work on a file or investigating an area of the codebase to see if there are important notes, learnings, or context that have been saved. Can search by query text, filter by file path, or list all notes.",
       inputSchema: {
         query: z.string().optional().describe("Search query to match against note content and file paths"),
         file_path: z.string().optional().describe("Filter notes for a specific file path"),
@@ -114,6 +114,42 @@ export function createMcpServer(): McpServer {
             {
               type: "text" as const,
               text: JSON.stringify(response),
+            },
+          ],
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ error: message }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_usage_metrics",
+    {
+      description:
+        "Get usage statistics for this repository including how many analyses have been performed, risk distributions, notes created, and performance metrics. Useful for understanding your usage patterns and the health of the codebase analysis.",
+      inputSchema: {
+        repo_root: z.string().describe("Absolute path to the git repository root"),
+      },
+    },
+    async ({ repo_root }) => {
+      try {
+        const response = await getMetrics({ repo_root });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(response, null, 2),
             },
           ],
         };

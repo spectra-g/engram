@@ -60,4 +60,11 @@ pub enum Command {
         #[arg(long)]
         repo_root: String,
     },
+
+    /// Get usage metrics for the repository
+    GetMetrics {
+        /// Path to the git repository root
+        #[arg(long)]
+        repo_root: String,
+    },
 }
