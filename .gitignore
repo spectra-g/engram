@@ -16,6 +16,10 @@ dist/
 # OS
 .DS_Store
 
+# Platform binary packages (populated by CI)
+npm/@spectra-g/engram-core-*/bin/*
+!npm/@spectra-g/engram-core-*/bin/.gitkeep
+
 # Coverage
 lcov.info
 coverage/

@@ -1,0 +1,24 @@
+{
+  "name": "@spectra-g/engram-core-win32-x64",
+  "version": "0.2.0",
+  "description": "Engram core binary for Windows x64",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin/**/*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "preferUnplugged": true,
+  "license": "SEE LICENSE IN ../../../LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spectra-g/engram.git",
+    "directory": "npm/@spectra-g/engram-core-win32-x64"
+  }
+}
