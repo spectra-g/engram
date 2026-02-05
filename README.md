@@ -25,12 +25,12 @@ This tool handles your most sensitive asset: your source code. To prove that you
 
 **Test Intent**
 * Automatically finds the specific tests associated with the files you are changing and reads their descriptions (e.g., "should handle negative balance").
-* **Why?** It forces the AI to read the rules before it plays the game.
+* **Why?** So the AI understands what behavior to preserve before making changes.
 
 **Knowledge graph**
 
 * Provides a persistence store where either you or the LLM can store/retrieve relevant notes concerning decisions, nuances, quirks, architecture etc
-* Why? Lessons learnt aren't lost when you start a new conversation.
+* **Why?** Lessons learnt aren't lost when you start a new conversation.
 
 **Tool calls**
 
@@ -276,7 +276,7 @@ const result = await client.callTool({
 
 ## Development Status
 
-### 📋 Planned Future Work
+### Planned Future Work
 
 -  Distribution strategy (npm package + binary downloads)
 -  Zombie process cleanup on adapter crash
