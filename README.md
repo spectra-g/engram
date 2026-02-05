@@ -25,7 +25,7 @@ This tool handles your most sensitive asset: your source code. To prove that you
 
 **Test Intent**
 * Automatically finds the specific tests associated with the files you are changing and reads their descriptions (e.g., "should handle negative balance").
-* **Why?** So the AI understands what behavior to preserve before making changes.
+* **Why?** So the AI understands what behaviour to preserve before making changes.
 
 **Knowledge graph**
 
@@ -52,7 +52,7 @@ For a given file, return the impacted files, their test intents and any stored n
 
 ```json
 {
-  "summary": "Changing src/Auth.ts may affect 2 files. 1 critical risk, 1 medium risk.\n\n⚠️ Critical Risk (0.89): src/Session.ts\n   Changed together in 48 of 50 commits (96%)\n   Notes: Session requires Redis connection\n\n⚠ High Risk (0.72): src/Auth.test.ts\n   Changed together in 31 of 50 commits (62%)\n   Current test behavior (may need updating):\n     - should login with valid credentials\n     - should reject invalid password\n     - should handle OAuth callback",
+  "summary": "Changing src/Auth.ts may affect 2 files. 1 critical risk, 1 medium risk.\n\n⚠️ Critical Risk (0.89): src/Session.ts\n   Changed together in 48 of 50 commits (96%)\n   Notes: Session requires Redis connection\n\n⚠ High Risk (0.72): src/Auth.test.ts\n   Changed together in 31 of 50 commits (62%)\n   Current test behaviour (may need updating):\n     - should login with valid credentials\n     - should reject invalid password\n     - should handle OAuth callback",
   "formatted_files": [
     {
       "path": "src/Session.ts",
