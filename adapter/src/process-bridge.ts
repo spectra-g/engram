@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import type {
   AnalysisRequest,
   AnalysisResponse,
@@ -16,16 +18,43 @@ import type {
 } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const DEFAULT_BINARY_PATH = resolve(
-  __dirname,
-  "../../target/release/engram-core"
-);
+const require = createRequire(import.meta.url);
 
 const TIMEOUT_MS = 5000;
 
+const PLATFORM_PACKAGES: Record<string, string> = {
+  "darwin-arm64": "@spectra-g/engram-core-darwin-arm64",
+  "darwin-x64": "@spectra-g/engram-core-darwin-x64",
+  "linux-x64": "@spectra-g/engram-core-linux-x64",
+  "linux-arm64": "@spectra-g/engram-core-linux-arm64",
+  "win32-x64": "@spectra-g/engram-core-win32-x64",
+};
+
 function getBinaryPath(): string {
-  return process.env.ENGRAM_CORE_BINARY || DEFAULT_BINARY_PATH;
+  // Tier 1: Explicit env var override
+  if (process.env.ENGRAM_CORE_BINARY) {
+    return process.env.ENGRAM_CORE_BINARY;
+  }
+
+  // Tier 2: Platform-specific npm package
+  const platformKey = `${process.platform}-${process.arch}`;
+  const packageName = PLATFORM_PACKAGES[platformKey];
+  if (packageName) {
+    try {
+      const packageJsonPath = require.resolve(`${packageName}/package.json`);
+      const packageDir = dirname(packageJsonPath);
+      const ext = process.platform === "win32" ? ".exe" : "";
+      const binaryPath = join(packageDir, "bin", `engram-core${ext}`);
+      if (existsSync(binaryPath)) {
+        return binaryPath;
+      }
+    } catch {
+      // Package not installed, fall through to dev path
+    }
+  }
+
+  // Tier 3: Development fallback
+  return resolve(__dirname, "../../target/release/engram-core");
 }
 
 export function runCore(args: string[]): Promise<ProcessResult> {

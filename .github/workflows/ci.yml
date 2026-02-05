@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rust-tests:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Run Rust tests
+        run: cd core && cargo test
+
+  adapter-tests:
+    name: Adapter Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Rust core
+        run: cd core && cargo build --release
+
+      - name: Install adapter dependencies
+        run: cd adapter && npm ci
+
+      - name: Build adapter
+        run: cd adapter && npm run build
+
+      - name: Run adapter tests
+        run: cd adapter && npm test
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Rust core
+        run: cd core && cargo build --release
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install adapter dependencies
+        run: cd adapter && npm ci
+
+      - name: Build adapter
+        run: cd adapter && npm run build
+
+      - name: Install e2e dependencies
+        run: cd e2e && npm ci
+
+      - name: Run E2E tests
+        run: cd e2e && npm test

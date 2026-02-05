@@ -148,15 +148,30 @@ Engram is designed to be low-latency and zero-config.
 -  **Warm path** (cached DB): < 200ms
 -  All data stored locally in `.engram/engram.db` at the repo root
 
+## Quick Install
+
+```bash
+npm install -g @spectra-g/engram-adapter
+```
+
+That's it — the correct binary for your platform is installed automatically. Then configure your MCP client to use `engram-adapter` (see [Using with MCP Clients](#using-with-mcp-clients) below).
+
 ## Installation & Usage
 
 ### Prerequisites
 
--  Rust (1.70+)
 -  Node.js (18+)
 -  Git repository
 
-### Build
+### Install from npm (Recommended)
+
+```bash
+npm install -g @spectra-g/engram-adapter
+```
+
+### Build from Source
+
+Requires Rust (1.70+) in addition to Node.js.
 
 ```bash
 # Build the Rust core
@@ -187,7 +202,19 @@ npm run test:e2e       # End-to-end integration tests
 
 #### 1. For Claude Code (CLI)
 
-Register Engram with Claude Code, add to your config (`~/.claude.json` on macOS):
+If installed via npm (`npm install -g @spectra-g/engram-adapter`), add to your config (`~/.claude.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "engram": {
+      "command": "engram-adapter"
+    }
+  }
+}
+```
+
+If building from source, use the full path instead:
 
 ```json
 {
@@ -240,6 +267,11 @@ To get Engram running in Cursor, you can add it via the Cursor Settings. Here is
 5. Click on "+ Add New MCP Server" and fill in the details based on your config:
    1. Name: `engram`
    2. Type: `command`
+   3. Command: `engram-adapter`
+
+   If building from source, use the full path instead:
+   1. Name: `engram`
+   2. Type: `command`
    3. Command: `ENGRAM_CORE_BINARY=/path/to/engram/target/release/engram-core node /path/to/engram/adapter/dist/index.js`
 
 To make the AI use Engram automatically, you must give it a "System Instruction."
@@ -278,7 +310,6 @@ const result = await client.callTool({
 
 ### Planned Future Work
 
--  Distribution strategy (npm package + binary downloads)
 -  Zombie process cleanup on adapter crash
 -  LCOV / Full Code Coverage Integration (Deep validation)
 -  Support for monorepos (multiple projects in one repo)
