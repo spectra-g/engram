@@ -1,6 +1,6 @@
 {
   "name": "@spectra-g/engram-core-win32-x64",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Engram core binary for Windows x64",
   "os": [
     "win32"
