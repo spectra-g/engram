@@ -55,8 +55,6 @@ jobs:
           targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: core
 
       - name: Install cross-compilation tools (Linux ARM64)
         if: matrix.cross
@@ -69,15 +67,11 @@ jobs:
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.cross && 'aarch64-linux-gnu-gcc' || '' }}
 
-      - name: List build output
-        run: ls -la core/target/${{ matrix.target }}/release/ || ls -la core/target/release/
-        shell: bash
-
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: engram-core-${{ matrix.platform }}
-          path: core/target/${{ matrix.target }}/release/${{ matrix.binary }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary }}
           if-no-files-found: error
 
   publish-platform-packages:
