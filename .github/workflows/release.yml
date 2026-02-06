@@ -157,7 +157,7 @@ jobs:
           "
 
       - name: Install dependencies
-        run: cd adapter && npm ci
+        run: cd adapter && npm install --omit=optional
 
       - name: Build
         run: cd adapter && npm run build
