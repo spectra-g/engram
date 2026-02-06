@@ -80,3 +80,54 @@ describe('Auth', () => {
 
   return createRepo({ commits });
 }
+
+/**
+ * Creates a repo where the test file lives in __tests__/ and is NOT
+ * co-committed with the source file (so it won't appear in coupled_files).
+ * This tests proactive test discovery via find_test_files.
+ */
+export function createDunderTestsRepo(): string {
+  const testFileContent = `
+import { Base64 } from '../Base64Tool';
+
+describe('Base64Tool', () => {
+  it('should encode string to base64', () => {
+    expect(Base64.encode('hello')).toBe('aGVsbG8=');
+  });
+
+  it('should decode base64 to string', () => {
+    expect(Base64.decode('aGVsbG8=')).toBe('hello');
+  });
+
+  it('should handle empty input', () => {
+    expect(Base64.encode('')).toBe('');
+  });
+});
+`;
+
+  const commits: CommitSpec[] = [];
+
+  // Initial commit: source + test in __tests__/
+  commits.push({
+    files: {
+      "src/tools/base64/Base64Tool.tsx": "// Base64 module v0\nexport class Base64 {}",
+      "src/tools/base64/__tests__/Base64Tool.test.tsx": testFileContent,
+      "src/tools/base64/helpers.ts": "// helpers v0\nexport function pad() {}",
+    },
+    message: "initial commit",
+  });
+
+  // 10 commits changing ONLY source + helpers (NOT the test file)
+  // This ensures the test file won't appear in coupled_files
+  for (let i = 1; i <= 10; i++) {
+    commits.push({
+      files: {
+        "src/tools/base64/Base64Tool.tsx": `// Base64 module v${i}\nexport class Base64 { version = ${i}; }`,
+        "src/tools/base64/helpers.ts": `// helpers v${i}\nexport function pad() { return ${i}; }`,
+      },
+      message: `update base64 and helpers v${i}`,
+    });
+  }
+
+  return createRepo({ commits });
+}

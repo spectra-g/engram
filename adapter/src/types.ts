@@ -19,12 +19,24 @@ export interface CoupledFile {
   test_intents?: TestIntent[];
 }
 
+export interface DiscoveredTestFile {
+  path: string;
+  test_intents: TestIntent[];
+  test_count: number;
+}
+
+export interface TestInfo {
+  test_files: DiscoveredTestFile[];
+  coverage_hint?: string;
+}
+
 export interface AnalysisResponse {
   file_path: string;
   repo_root: string;
   coupled_files: CoupledFile[];
   commit_count: number;
   analysis_time_ms: number;
+  test_info?: TestInfo;
 }
 
 export interface AnalysisRequest {

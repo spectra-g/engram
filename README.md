@@ -2,7 +2,7 @@
 
 **The "Blast Radius" Detector for AI Agents.**
 
-Engram gives your AI agent (Claude, Cursor, etc.) the one thing it lacks: **Organizational Memory.**
+Engram gives your AI agent the one thing it lacks: **Organizational Memory.**
 
 By analyzing your git history and project notes, Engram predicts what will break *before* the AI writes a single line of code. It detects files that are secretly coupled, even if they don't import each other directly, preventing the "fix one thing, break another" cycle.
 
@@ -139,7 +139,7 @@ Search notes by content or file path, or list all project knowledge.
 Engram is designed to be low-latency and zero-config.
 
 1.  **Smart Indexing:** Engram scans your git history incrementally in the background. It automatically filters out "noise" (like `package-lock.json` or binary files) and tracks file renames to ensure the history is accurate.
-2.  **The Risk Algorithm:** We don't just count commits. Engram calculates a **Risk Score (0-1)** based on **Coupling** (frequency) and **Recency** (how lately it happened).
+2.  **The Risk Algorithm:** Engram calculates a **Risk Score (0-1)** based on **Coupling** (frequency) and **Recency** (how lately it happened).
 3.  **Context Injection:** Finally, it combines these insights with your stored notes and relevant test names, formatting them into a concise summary that fits perfectly within the AI's context window.
 
 ### Performance
@@ -148,91 +148,38 @@ Engram is designed to be low-latency and zero-config.
 -  **Warm path** (cached DB): < 200ms
 -  All data stored locally in `.engram/engram.db` at the repo root
 
-## Quick Install
+## Install
 
 ```bash
 npm install -g @spectra-g/engram-adapter
 ```
 
-That's it — the correct binary for your platform is installed automatically. Then configure your MCP client to use `engram-adapter` (see [Using with MCP Clients](#using-with-mcp-clients) below).
+The correct binary for your platform (macOS, Linux, Windows) is installed automatically.
 
-## Installation & Usage
+## Setup
 
-### Prerequisites
+Engram is an [MCP server](https://modelcontextprotocol.io/) and works with any MCP-compatible client. Below are two examples - refer to your client's documentation for specifics.
 
--  Node.js (18+)
--  Git repository
-
-### Install from npm (Recommended)
+### Claude Code
 
 ```bash
-npm install -g @spectra-g/engram-adapter
+claude mcp add --scope user --transport stdio engram -- npx -y @spectra-g/engram-adapter
 ```
 
-### Build from Source
+### Cursor
 
-Requires Rust (1.70+) in addition to Node.js.
+Settings > General > MCP Servers > Add New MCP Server:
+- **Name:** `engram`
+- **Type:** `command`
+- **Command:** `npx -y @spectra-g/engram-adapter`
 
-```bash
-# Build the Rust core
-npm run build:core
+### Other Clients
 
-# Build the TypeScript adapter
-npm run build:adapter
+Engram is MCP client-agnostic. Any client that supports the stdio transport can connect. If you need help with a specific client, please [open an issue](https://github.com/spectra-g/engram/issues) or contribute a setup guide.
 
-# Or build both
-npm run build:all
+### System Instruction (Recommended)
 
-```
-
-### Running Tests
-
-```bash
-# Run all tests (Rust + adapter + E2E)
-npm run test:all
-
-# Or run individually
-npm run test:core      # Rust unit tests
-npm run test:adapter   # TypeScript unit tests
-npm run test:e2e       # End-to-end integration tests
-
-```
-
-### Using with MCP Clients
-
-#### 1. For Claude Code (CLI)
-
-If installed via npm (`npm install -g @spectra-g/engram-adapter`), add to your config (`~/.claude.json` on macOS):
-
-```json
-{
-  "mcpServers": {
-    "engram": {
-      "command": "engram-adapter"
-    }
-  }
-}
-```
-
-If building from source, use the full path instead:
-
-```json
-{
-  "mcpServers": {
-    "engram": {
-      "command": "node",
-      "args": ["/path/to/engram/adapter/dist/index.js"],
-      "env": {
-        "ENGRAM_CORE_BINARY": "/path/to/engram/target/release/engram-core"
-      }
-    }
-  }
-}
-```
-To make the AI use Engram automatically, you must give it a "System Instruction."
-
-1. Open (or create) the file `CLAUDE.md` in your project root.
-2. Paste the following rule exactly:
+To make your AI use Engram automatically on every task, add this to your project rules file (`CLAUDE.md`, `.cursorrules`, etc.):
 
 ```markdown
 ## Engram Workflow Policy
@@ -248,83 +195,35 @@ You MUST follow this strictly sequential workflow for EVERY code modification re
 4.  **Fix/Refactor**: Proceed with the code changes.
 
 ### Phase 3: Knowledge Capture (MANDATORY END)
-5.  **Save Learnings**: Before finishing, ask: *"Did I discover a hidden dependency, a tricky bug cause, or an architectural quirk?"*
+5.  **Save Learnings**: Before finishing, ask: *"Would a future developer be **surprised** by something I discovered?"*
+    Save a note ONLY for **non-obvious** insights:
+    - Hidden coupling between files that don't import each other
+    - Surprising runtime behavior (e.g., "this function silently swallows errors")
+    - Architectural constraints not evident from the code (e.g., "must deploy X before Y")
+    - Environment-specific gotchas (e.g., "CI uses Node 18, which lacks this API")
+
+    Do NOT save notes for:
+    - Typo fixes, simple renames, or formatting changes
+    - Bug fixes with obvious causes (e.g., off-by-one, null check)
+    - Routine refactors where the code is self-explanatory
+    - Changes that are already well-documented in comments or commit messages
+
     - **IF YES**: You MUST use `save_project_note` to persist this context for future sessions.
     - **IF NO**: Proceed to completion.
 
 NEVER skip Step 1. NEVER skip Step 5 if valuable context was gained.
 ```
 
-Then restart Claude Code. The tools will be available to Claude.
+## Development
 
-#### 2. For Cursor
-To get Engram running in Cursor, you can add it via the Cursor Settings. Here is how you do it:
+### Build from Source
 
-1. Open MCP Settings
-2. Open Cursor and go to Settings (the gear icon in the top right, or Cmd + Shift + J on macOS / Ctrl + Shift + J on Windows).
-3. Navigate to General > MCP Servers.
-4. Add the New Server
-5. Click on "+ Add New MCP Server" and fill in the details based on your config:
-   1. Name: `engram`
-   2. Type: `command`
-   3. Command: `engram-adapter`
+Requires Rust (1.70+) and Node.js (18+).
 
-   If building from source, use the full path instead:
-   1. Name: `engram`
-   2. Type: `command`
-   3. Command: `ENGRAM_CORE_BINARY=/path/to/engram/target/release/engram-core node /path/to/engram/adapter/dist/index.js`
-
-To make the AI use Engram automatically, you must give it a "System Instruction."
-
-1. Create a file named `.cursorrules` in your project root.
-2. Paste the exact same text block shown above (from the Claude section) into this file.
-
-*Note: Without this file, the AI will likely be "lazy" and skip the analysis step to save time.*
-
-#### Other MCP Clients
-
-Any MCP-compatible client can connect to the adapter over stdio:
-
-```javascript
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-
-const client = new Client({ name: "my-client", version: "1.0.0" });
-const transport = new StdioClientTransport({
-  command: "node",
-  args: ["/path/to/engram/adapter/dist/index.js"],
-  env: {
-    ENGRAM_CORE_BINARY: "/path/to/engram/target/release/engram-core"
-  }
-});
-
-await client.connect(transport);
-const result = await client.callTool({
-  name: "get_impact_analysis",
-  arguments: { file_path: "src/Auth.ts", repo_root: "/path/to/repo" }
-});
-
+```bash
+npm run build:all    # Build Rust core + TypeScript adapter
+npm run test:all     # Run all tests (Rust + adapter + E2E)
 ```
-
-## Development Status
-
-### Planned Future Work
-
--  Zombie process cleanup on adapter crash
--  LCOV / Full Code Coverage Integration (Deep validation)
--  Support for monorepos (multiple projects in one repo)
--  Configurable ignore patterns (custom lockfile/binary lists)
-
-## Testing Strategy
-
-The project uses a rigorous testing approach:
-
--  **Rust unit tests** - Test individual functions in isolation
--  **Adapter unit tests** - Mock the Rust binary, test TypeScript logic
--  **E2E tests** - Generate real git repositories with deterministic commit histories, run full analysis cycles
--  **Performance tests** - Confirm all flows work to max 200ms latency
-
-All tests run in CI via `npm run test:all`.
 
 ## Contributing
 
