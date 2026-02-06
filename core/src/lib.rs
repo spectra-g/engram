@@ -30,6 +30,7 @@ pub fn analyze(
     let mut response = temporal::analyze(repo_root, file_path, &db)?;
     knowledge::enrich_with_memories(&db, &mut response.coupled_files);
     test_intents::enrich_with_test_intents(repo_root, &mut response.coupled_files);
+    response.test_info = test_intents::discover_test_info(repo_root, file_path);
 
     // Record metrics (non-blocking - errors are logged but don't fail the analysis)
     if let Err(e) = metrics::record_analysis_event(&db, &response, &repo_root.to_string_lossy()) {
