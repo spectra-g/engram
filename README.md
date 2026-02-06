@@ -190,12 +190,13 @@ You MUST follow this strictly sequential workflow for EVERY code modification re
 1.  **Blast Radius Check**: Before reading code or proposing changes, you MUST call `get_impact_analysis` on the target file(s).
 2.  **Context Loading**: If the analysis reveals "High" or "Critical" risk coupled files, you must read those files (`read_file`) to prevent regressions.
 3.  **Review Notes**: Pay close attention to any "Memories" returned in the analysis summary.
+4.  **Consider Test Coverage**: If the analysis includes `test_info` or `test_intents`, factor the existing test count and descriptions into your testing approach. Update existing tests if behavior is intentionally changing, and consider whether coverage is adequate for the change you're making.
 
 ### Phase 2: Execution
-4.  **Fix/Refactor**: Proceed with the code changes.
+5.  **Fix/Refactor**: Proceed with the code changes.
 
 ### Phase 3: Knowledge Capture (MANDATORY END)
-5.  **Save Learnings**: Before finishing, ask: *"Would a future developer be **surprised** by something I discovered?"*
+6.  **Save Learnings**: Before finishing, ask: *"Would a future developer be **surprised** by something I discovered?"*
     Save a note ONLY for **non-obvious** insights:
     - Hidden coupling between files that don't import each other
     - Surprising runtime behavior (e.g., "this function silently swallows errors")
@@ -211,7 +212,7 @@ You MUST follow this strictly sequential workflow for EVERY code modification re
     - **IF YES**: You MUST use `save_project_note` to persist this context for future sessions.
     - **IF NO**: Proceed to completion.
 
-NEVER skip Step 1. NEVER skip Step 5 if valuable context was gained.
+NEVER skip Step 1. NEVER skip Step 6 if valuable context was gained.
 ```
 
 ## Development
