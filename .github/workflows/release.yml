@@ -119,7 +119,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           cd npm/@spectra-g/engram-core-${{ matrix.platform }}
-          npm version "$VERSION" --no-git-tag-version
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Publish
         run: cd npm/@spectra-g/engram-core-${{ matrix.platform }} && npm publish
@@ -146,7 +146,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           cd adapter
-          npm version "$VERSION" --no-git-tag-version
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
