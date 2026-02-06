@@ -32,7 +32,7 @@ This tool handles your most sensitive asset: your source code. To prove that you
 * Provides a persistence store where either you or the LLM can store/retrieve relevant notes concerning decisions, nuances, quirks, architecture etc
 * **Why?** Lessons learnt aren't lost when you start a new conversation.
 
-**Tool calls**
+## Tool calls
 
 ### 1. `get_impact_analysis` - Blast radius calculation for a target file
 
@@ -322,7 +322,7 @@ The project uses a rigorous testing approach:
 -  **Rust unit tests** - Test individual functions in isolation
 -  **Adapter unit tests** - Mock the Rust binary, test TypeScript logic
 -  **E2E tests** - Generate real git repositories with deterministic commit histories, run full analysis cycles
-- **Performance tests** - Confirm all flows work to max 200ms latency
+-  **Performance tests** - Confirm all flows work to max 200ms latency
 
 All tests run in CI via `npm run test:all`.
 
@@ -335,15 +335,15 @@ We welcome bug reports and community fixes. Please note that by contributing to 
 This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
 
 ### Personal & Non-Profit Use
-If you are using this for **personal hobby projects**, **non-profit organizations**, or **educational research**, it is completely free. We encourage you to audit the source code to see how we handle your data.
+If you are using this for personal hobby projects, non-profit organizations, or educational research, it is completely free. We encourage you to audit the source code to see how we handle your data.
 
 ### Professional & Commercial Use
-If you are using this tool in a **for-profit workplace** (at your job, for your company, or as a freelancer for a client), **a commercial license is required**.
+If you are using this tool in a for-profit workplace (at your job, for your company, or as a freelancer for a client), a commercial license is required.
 
-**This includes work on commercial open-source projects.** If you are paid to write code, you need a license.
+This includes work on commercial open-source projects. If you are paid to write code, you need a license.
 
 Using this tool for commercial work without a license requires a commercial license agreement.
 
-**[Purchase a Commercial License](https://engrampro.net/#pricing)**
+[Purchase a Commercial License](https://engrampro.net/#pricing)
 
-**[View the Full License Text](LICENSE)**
+[View the Full License Text](LICENSE)
