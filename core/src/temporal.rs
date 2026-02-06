@@ -184,6 +184,7 @@ pub fn analyze(
         coupled_files,
         commit_count,
         analysis_time_ms: elapsed.as_millis() as u64,
+        test_info: None,
     })
 }
 

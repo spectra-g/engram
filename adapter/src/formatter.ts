@@ -1,4 +1,4 @@
-import type { AnalysisResponse, CoupledFile, RiskLevel, FormattedCoupledFile } from "./types.js";
+import type { AnalysisResponse, CoupledFile, RiskLevel, FormattedCoupledFile, TestInfo } from "./types.js";
 
 const DISPLAY_LIMIT = 5;
 
@@ -65,6 +65,20 @@ export function buildFileDetails(files: FormattedCoupledFile[]): string {
     .join("\n\n");
 }
 
+export function buildTestInfoSection(testInfo: TestInfo): string {
+  const lines: string[] = [];
+  if (testInfo.coverage_hint) {
+    lines.push(`Test coverage: ${testInfo.coverage_hint}`);
+  }
+  for (const tf of testInfo.test_files) {
+    lines.push(`  ${tf.path} (${tf.test_count} test${tf.test_count === 1 ? "" : "s"}):`);
+    for (const intent of tf.test_intents) {
+      lines.push(`    - ${intent.title}`);
+    }
+  }
+  return lines.join("\n");
+}
+
 /**
  * Formats raw analysis JSON into a human-readable + machine-parseable
  * response for the MCP tool call. Returns JSON text that contains
@@ -91,7 +105,11 @@ export function formatAnalysisResponse(response: AnalysisResponse): string {
 
   const summaryLine = buildSummaryLine(response.file_path, formattedFiles);
   const details = buildFileDetails(formattedFiles);
-  const summary = details ? `${summaryLine}\n\n${details}` : summaryLine;
+  let summary = details ? `${summaryLine}\n\n${details}` : summaryLine;
+
+  if (response.test_info) {
+    summary += `\n\n${buildTestInfoSection(response.test_info)}`;
+  }
 
   return JSON.stringify({
     summary,

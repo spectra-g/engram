@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { classifyRisk, describeFile, buildSummaryLine, buildFileDetails, formatAnalysisResponse } from "../src/formatter.js";
-import type { AnalysisResponse, CoupledFile, FormattedCoupledFile } from "../src/types.js";
+import { classifyRisk, describeFile, buildSummaryLine, buildFileDetails, buildTestInfoSection, formatAnalysisResponse } from "../src/formatter.js";
+import type { AnalysisResponse, CoupledFile, FormattedCoupledFile, TestInfo } from "../src/types.js";
 
 describe("classifyRisk", () => {
   it("should return Critical for scores >= 0.8", () => {
@@ -156,5 +156,95 @@ describe("formatAnalysisResponse", () => {
 
     expect(parsed.formatted_files[0].test_intents).toBeUndefined();
     expect(parsed.summary).not.toContain("Current test behavior");
+  });
+
+  it("should include test_info section in summary when present", () => {
+    const response = makeResponse(1);
+    response.test_info = {
+      test_files: [
+        {
+          path: "src/__tests__/Auth.test.tsx",
+          test_intents: [
+            { title: "should login" },
+            { title: "should logout" },
+          ],
+          test_count: 2,
+        },
+      ],
+      coverage_hint: "2 tests covering a 100-line source file",
+    };
+    const parsed = JSON.parse(formatAnalysisResponse(response));
+
+    expect(parsed.summary).toContain("Test coverage: 2 tests covering a 100-line source file");
+    expect(parsed.summary).toContain("src/__tests__/Auth.test.tsx (2 tests):");
+    expect(parsed.summary).toContain("- should login");
+    expect(parsed.summary).toContain("- should logout");
+    expect(parsed.test_info).toBeDefined();
+  });
+
+  it("should not include test_info section when absent", () => {
+    const response = makeResponse(1);
+    const parsed = JSON.parse(formatAnalysisResponse(response));
+
+    expect(parsed.summary).not.toContain("Test coverage:");
+    expect(parsed.test_info).toBeUndefined();
+  });
+});
+
+describe("buildTestInfoSection", () => {
+  it("should render coverage hint and test files", () => {
+    const info: TestInfo = {
+      test_files: [
+        {
+          path: "src/Auth.test.tsx",
+          test_intents: [{ title: "should login" }],
+          test_count: 1,
+        },
+      ],
+      coverage_hint: "1 test covering a 50-line source file",
+    };
+    const section = buildTestInfoSection(info);
+    expect(section).toContain("Test coverage: 1 test covering a 50-line source file");
+    expect(section).toContain("src/Auth.test.tsx (1 test):");
+    expect(section).toContain("- should login");
+  });
+
+  it("should pluralize test count correctly", () => {
+    const info: TestInfo = {
+      test_files: [
+        {
+          path: "src/Auth.test.tsx",
+          test_intents: [{ title: "a" }, { title: "b" }],
+          test_count: 5,
+        },
+      ],
+    };
+    const section = buildTestInfoSection(info);
+    expect(section).toContain("(5 tests):");
+  });
+
+  it("should handle missing coverage_hint", () => {
+    const info: TestInfo = {
+      test_files: [
+        {
+          path: "src/Auth.test.tsx",
+          test_intents: [{ title: "should login" }],
+          test_count: 1,
+        },
+      ],
+    };
+    const section = buildTestInfoSection(info);
+    expect(section).not.toContain("Test coverage:");
+    expect(section).toContain("src/Auth.test.tsx (1 test):");
+  });
+
+  it("should handle empty test_files", () => {
+    const info: TestInfo = {
+      test_files: [],
+      coverage_hint: "0 tests covering a 100-line source file",
+    };
+    const section = buildTestInfoSection(info);
+    expect(section).toContain("Test coverage:");
+    expect(section).not.toContain("(");
   });
 });

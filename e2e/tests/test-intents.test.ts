@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { McpTestClient } from "./helpers/mcp-client.js";
-import { createTestIntentsRepo } from "../../fixtures/src/scenarios/test-intents.js";
+import { createTestIntentsRepo, createDunderTestsRepo } from "../../fixtures/src/scenarios/test-intents.js";
 import { CORE_BINARY_PATH } from "./setup.js";
 import { rmSync } from "node:fs";
 
@@ -79,5 +79,68 @@ describe("test-intents: test intent extraction", () => {
 
     expect(testFile).toBeDefined();
     expect(testFile.test_intents.length).toBeLessThanOrEqual(5);
+  });
+});
+
+describe("test-intents: proactive test discovery via __tests__/", () => {
+  let client: McpTestClient;
+  let repoDir: string;
+
+  beforeAll(async () => {
+    repoDir = createDunderTestsRepo();
+    client = new McpTestClient();
+    await client.connect({ coreBinaryPath: CORE_BINARY_PATH });
+  });
+
+  afterAll(async () => {
+    await client.close();
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it("should discover test files in __tests__/ via proactive discovery", async () => {
+    const result = await client.callTool("get_impact_analysis", {
+      file_path: "src/tools/base64/Base64Tool.tsx",
+      repo_root: repoDir,
+    });
+
+    const data = JSON.parse(result.content[0].text!);
+
+    // test_info should discover the __tests__/ file via naming convention
+    expect(data.test_info).toBeDefined();
+    expect(data.test_info.test_files.length).toBeGreaterThan(0);
+
+    const discoveredTest = data.test_info.test_files.find(
+      (f: { path: string }) => f.path.includes("Base64Tool.test.tsx")
+    );
+    expect(discoveredTest).toBeDefined();
+    expect(discoveredTest.test_count).toBe(3);
+
+    const titles = discoveredTest.test_intents.map((t: { title: string }) => t.title);
+    expect(titles).toContain("should encode string to base64");
+    expect(titles).toContain("should decode base64 to string");
+  });
+
+  it("should include coverage hint in test_info", async () => {
+    const result = await client.callTool("get_impact_analysis", {
+      file_path: "src/tools/base64/Base64Tool.tsx",
+      repo_root: repoDir,
+    });
+
+    const data = JSON.parse(result.content[0].text!);
+    expect(data.test_info).toBeDefined();
+    expect(data.test_info.coverage_hint).toBeDefined();
+    expect(data.test_info.coverage_hint).toContain("3 tests");
+    expect(data.test_info.coverage_hint).toContain("source file");
+  });
+
+  it("should include test_info in summary output", async () => {
+    const result = await client.callTool("get_impact_analysis", {
+      file_path: "src/tools/base64/Base64Tool.tsx",
+      repo_root: repoDir,
+    });
+
+    const data = JSON.parse(result.content[0].text!);
+    expect(data.summary).toContain("Test coverage:");
+    expect(data.summary).toContain("3 tests");
   });
 });

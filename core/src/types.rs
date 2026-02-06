@@ -13,6 +13,22 @@ pub struct AnalysisResponse {
     pub coupled_files: Vec<CoupledFile>,
     pub commit_count: u32,
     pub analysis_time_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub test_info: Option<TestInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveredTestFile {
+    pub path: String,
+    pub test_intents: Vec<TestIntent>,
+    pub test_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TestInfo {
+    pub test_files: Vec<DiscoveredTestFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coverage_hint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
