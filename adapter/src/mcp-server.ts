@@ -6,7 +6,7 @@ import { formatAnalysisResponse } from "./formatter.js";
 export function createMcpServer(): McpServer {
   const server = new McpServer({
     name: "engram",
-    version: "0.2.6",
+    version: "0.2.7",
   });
 
   server.registerTool(

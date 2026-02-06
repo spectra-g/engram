@@ -1,6 +1,6 @@
 {
   "name": "@spectra-g/engram-core-darwin-arm64",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Engram core binary for macOS ARM64 (Apple Silicon)",
   "os": [
     "darwin"

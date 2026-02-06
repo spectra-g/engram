@@ -42,7 +42,7 @@ jobs:
         run: cd core && cargo build --release
 
       - name: Install adapter dependencies
-        run: cd adapter && npm ci
+        run: cd adapter && npm ci --omit=optional
 
       - name: Build adapter
         run: cd adapter && npm run build
@@ -73,7 +73,7 @@ jobs:
         run: npm ci
 
       - name: Install adapter dependencies
-        run: cd adapter && npm ci
+        run: cd adapter && npm ci --omit=optional
 
       - name: Build adapter
         run: cd adapter && npm run build
