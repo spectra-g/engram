@@ -437,6 +437,108 @@ mod tests {
     }
 
     #[test]
+    fn test_should_index_file_extension_case_insensitive() {
+        // Extension matching lowercases the path, so uppercase extensions are rejected
+        assert!(!should_index_file("assets/Image.PNG"));
+        assert!(!should_index_file("assets/Logo.JPG"));
+        assert!(!should_index_file("assets/Photo.JPEG"));
+        assert!(!should_index_file("dist/bundle.MIN.JS"));
+        assert!(!should_index_file("dist/styles.MIN.CSS"));
+        assert!(!should_index_file("fonts/Inter.WOFF2"));
+    }
+
+    #[test]
+    fn test_should_index_file_filename_case_sensitive() {
+        // Filename matching is case-sensitive (no lowercasing), so these are NOT rejected
+        assert!(should_index_file(".ds_store")); // lowercase, won't match ".DS_Store"
+        assert!(should_index_file("PACKAGE-LOCK.JSON")); // uppercase, won't match "package-lock.json"
+        assert!(should_index_file("YARN.LOCK")); // uppercase, won't match "yarn.lock"
+    }
+
+    #[test]
+    fn test_merge_commit_includes_branch_changes() {
+        // Documents current behavior: index_history diffs against parent(0) only.
+        // For merge commits, this means all files changed on the merged branch
+        // appear in the diff, inflating co-change counts.
+        //
+        // Setup: main has file A. Feature branch changes file B. Merge back to main.
+        // After merge, A and B show coupling even though they were never edited together.
+
+        let dir = TempDir::new().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+        let sig = Signature::now("Test", "test@test.com").unwrap();
+
+        // Commit 0 (main): create both files
+        fs::write(dir.path().join("A.ts"), "v0").unwrap();
+        fs::write(dir.path().join("B.ts"), "v0").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let commit0 = repo.commit(Some("HEAD"), &sig, &sig, "initial", &tree, &[]).unwrap();
+        let commit0 = repo.find_commit(commit0).unwrap();
+
+        // Remember the initial branch name (master or main depending on git config)
+        let initial_branch = repo.head().unwrap().name().unwrap().to_string();
+
+        // Create feature branch from commit0
+        repo.branch("feature", &commit0, false).unwrap();
+
+        // Commit 1 (main): change A only
+        fs::write(dir.path().join("A.ts"), "v1-main").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let main_commit = repo.commit(Some("HEAD"), &sig, &sig, "main: change A", &tree, &[&commit0]).unwrap();
+        let main_commit = repo.find_commit(main_commit).unwrap();
+
+        // Switch to feature branch and change B only
+        repo.set_head("refs/heads/feature").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force())).unwrap();
+        fs::write(dir.path().join("B.ts"), "v1-feature").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let feature_commit = repo.commit(Some("refs/heads/feature"), &sig, &sig, "feature: change B", &tree, &[&commit0]).unwrap();
+        let feature_commit = repo.find_commit(feature_commit).unwrap();
+
+        // Merge: switch back to the initial branch
+        repo.set_head(&initial_branch).unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force())).unwrap();
+
+        // Build merged index
+        let mut merge_index = repo.merge_commits(&main_commit, &feature_commit, None).unwrap();
+        let merge_tree_id = merge_index.write_tree_to(&repo).unwrap();
+        let merge_tree = repo.find_tree(merge_tree_id).unwrap();
+        repo.commit(
+            Some("HEAD"), &sig, &sig, "merge feature into main",
+            &merge_tree, &[&main_commit, &feature_commit],
+        ).unwrap();
+
+        // Index and check coupling
+        let db = Database::in_memory().unwrap();
+        let repo = Repository::open(dir.path()).unwrap();
+        let indexed = index_history(&repo, &db, 1000).unwrap();
+        assert!(indexed >= 4, "should index at least 4 commits, got {indexed}");
+
+        // Current behavior: the merge commit diffs against parent(0) (main_commit),
+        // so B.ts appears changed in the merge diff. This means A.ts and B.ts
+        // show coupling through the merge, even though no single non-merge commit
+        // changed both files together.
+        let coupled = db.coupled_files("A.ts").unwrap();
+        let b_coupled = coupled.iter().find(|(p, _)| p == "B.ts");
+        assert!(
+            b_coupled.is_some(),
+            "B.ts should appear coupled to A.ts due to merge commit diffing against parent(0)"
+        );
+    }
+
+    #[test]
     fn test_commit_limit_enforcement() {
         // Create 20 commits
         let mut commits = Vec::new();

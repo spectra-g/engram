@@ -9,7 +9,7 @@ const MAX_INTENTS_PER_FILE: usize = 5;
 
 // Compiled regexes for test title extraction
 static JS_TEST_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?:^|\s)(?:it|test)\(\s*(?:'([^']*)'|"([^"]*)")"#).unwrap()
+    Regex::new(r#"(?:^|\s)(?:it|test)\(\s*(?:'([^']*)'|"([^"]*)"|`([^`]*)`)"#).unwrap()
 });
 
 static RUST_TEST_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -124,8 +124,8 @@ pub fn extract_test_intents(content: &str, path: &str) -> Vec<TestIntent> {
 
     for cap in re.captures_iter(content) {
         let title = match lang {
-            // JS/TS uses two capture groups (single-quote and double-quote)
-            TestLang::JsTs => cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str().to_string()),
+            // JS/TS uses three capture groups (single-quote, double-quote, backtick)
+            TestLang::JsTs => cap.get(1).or_else(|| cap.get(2)).or_else(|| cap.get(3)).map(|m| m.as_str().to_string()),
             // All other languages use group 1 with humanized names
             _ => cap.get(1).map(|m| humanize(m.as_str())),
         };
@@ -803,6 +803,50 @@ describe("Auth", () => {
 
         let found = find_test_files(tmp.path(), "auth.py");
         assert_eq!(found, vec!["test_auth.py"]);
+    }
+
+    #[test]
+    fn test_extracts_js_backtick_test_names() {
+        let content = r#"
+describe("Auth", () => {
+  it(`should handle template literal name`, () => {});
+  test(`should also work with test()`, () => {});
+});
+"#;
+        let intents = extract_test_intents(content, "src/Auth.test.ts");
+        assert_eq!(intents.len(), 2);
+        assert_eq!(intents[0].title, "should handle template literal name");
+        assert_eq!(intents[1].title, "should also work with test()");
+    }
+
+    #[test]
+    fn test_counts_backtick_test_names() {
+        let content = r#"
+describe("Mixed", () => {
+  it('single quoted', () => {});
+  it("double quoted", () => {});
+  it(`backtick quoted`, () => {});
+  test(`another backtick`, () => {});
+});
+"#;
+        let count = count_test_cases(content, "src/Auth.test.ts");
+        assert_eq!(count, 4);
+    }
+
+    #[test]
+    fn test_mixed_quote_styles_in_extraction() {
+        let content = r#"
+describe("Suite", () => {
+  it('single', () => {});
+  it("double", () => {});
+  it(`backtick`, () => {});
+});
+"#;
+        let intents = extract_test_intents(content, "src/Auth.test.ts");
+        assert_eq!(intents.len(), 3);
+        assert_eq!(intents[0].title, "single");
+        assert_eq!(intents[1].title, "double");
+        assert_eq!(intents[2].title, "backtick");
     }
 
     #[test]
