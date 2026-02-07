@@ -30,6 +30,33 @@ node -e "
 "
 echo "  Updated adapter/package.json"
 
+# 2b. adapter/package-lock.json — keep in sync with package.json
+node -e "
+  const fs = require('fs');
+  const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf-8'));
+  lock.version = '$VERSION';
+  if (lock.packages && lock.packages['']) {
+    lock.packages[''].version = '$VERSION';
+    const optDeps = lock.packages[''].optionalDependencies;
+    if (optDeps) {
+      for (const dep of Object.keys(optDeps)) {
+        optDeps[dep] = '$VERSION';
+      }
+    }
+  }
+  for (const [key, entry] of Object.entries(lock.packages)) {
+    if (key.includes('@spectra-g/engram-core-')) {
+      entry.version = '$VERSION';
+      const shortName = key.split('/').pop();
+      const scopedName = key.replace('node_modules/', '');
+      entry.resolved = 'https://registry.npmjs.org/' + scopedName + '/-/' + shortName + '-$VERSION.tgz';
+      delete entry.integrity;
+    }
+  }
+  fs.writeFileSync('package-lock.json', JSON.stringify(lock, null, 2) + '\n');
+"
+echo "  Updated adapter/package-lock.json"
+
 # 3. Platform packages
 for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
   pkg_dir="$ROOT_DIR/npm/@spectra-g/engram-core-$platform"
