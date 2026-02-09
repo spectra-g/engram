@@ -61,17 +61,40 @@ export function runCore(args: string[]): Promise<ProcessResult> {
   const binaryPath = getBinaryPath();
 
   return new Promise((resolve, reject) => {
-    const child = spawn(binaryPath, args);
-    let stdout = "";
+    const child = spawn(binaryPath, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdoutBuffer = "";
     let stderr = "";
+    let resolved = false;
 
     const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error(`engram-core timed out after ${TIMEOUT_MS}ms`));
+      if (!resolved) {
+        child.kill("SIGKILL");
+        reject(new Error(`engram-core timed out after ${TIMEOUT_MS}ms`));
+      }
     }, TIMEOUT_MS);
 
     child.stdout.on("data", (data: Buffer) => {
-      stdout += data.toString();
+      if (resolved) return;
+
+      stdoutBuffer += data.toString();
+      if (stdoutBuffer.includes("\n")) {
+        const line = stdoutBuffer.split("\n")[0];
+        try {
+          JSON.parse(line); // Validate before resolving
+          resolved = true;
+          clearTimeout(timer);
+          resolve({ stdout: line, stderr: "", exitCode: 0 });
+
+          // Detach: let background indexing continue
+          (child.stdout as any).unref?.();
+          (child.stderr as any).unref?.();
+          child.unref();
+        } catch {
+          // Not valid JSON yet, wait for close event
+        }
+      }
     });
 
     child.stderr.on("data", (data: Buffer) => {
@@ -79,13 +102,17 @@ export function runCore(args: string[]): Promise<ProcessResult> {
     });
 
     child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(new Error(`Failed to spawn engram-core: ${err.message}`));
+      if (!resolved) {
+        clearTimeout(timer);
+        reject(new Error(`Failed to spawn engram-core: ${err.message}`));
+      }
     });
 
     child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr, exitCode: code ?? 1 });
+      if (!resolved) {
+        clearTimeout(timer);
+        resolve({ stdout: stdoutBuffer, stderr, exitCode: code ?? 1 });
+      }
     });
   });
 }

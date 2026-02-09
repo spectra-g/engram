@@ -7,6 +7,13 @@ pub struct AnalysisRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexingStatus {
+    pub strategy: String,
+    pub commits_indexed: u32,
+    pub is_complete: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisResponse {
     pub file_path: String,
     pub repo_root: String,
@@ -15,6 +22,8 @@ pub struct AnalysisResponse {
     pub analysis_time_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub test_info: Option<TestInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexing_status: Option<IndexingStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

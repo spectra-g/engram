@@ -30,6 +30,12 @@ export interface TestInfo {
   coverage_hint?: string;
 }
 
+export interface IndexingStatus {
+  strategy: string;
+  commits_indexed: number;
+  is_complete: boolean;
+}
+
 export interface AnalysisResponse {
   file_path: string;
   repo_root: string;
@@ -37,6 +43,7 @@ export interface AnalysisResponse {
   commit_count: number;
   analysis_time_ms: number;
   test_info?: TestInfo;
+  indexing_status?: IndexingStatus;
 }
 
 export interface AnalysisRequest {

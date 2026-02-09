@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod indexing;
 pub mod knowledge;
 pub mod metrics;
 pub mod persistence;
@@ -11,6 +12,14 @@ use std::path::Path;
 
 use persistence::Database;
 use types::{AddNoteResponse, AnalysisResponse, ListNotesResponse, MetricsResponse, SearchNotesResponse};
+
+/// Result of an analysis call, including whether background indexing is needed.
+pub struct AnalyzeResult {
+    pub response: AnalysisResponse,
+    pub needs_background: bool,
+    pub repo_root: std::path::PathBuf,
+    pub file_path: String,
+}
 
 fn open_db(repo_root: &Path) -> Result<Database, Box<dyn std::error::Error>> {
     let engram_dir = repo_root.join(".engram");
@@ -25,9 +34,9 @@ fn open_db(repo_root: &Path) -> Result<Database, Box<dyn std::error::Error>> {
 pub fn analyze(
     repo_root: &Path,
     file_path: &str,
-) -> Result<AnalysisResponse, Box<dyn std::error::Error>> {
+) -> Result<AnalyzeResult, Box<dyn std::error::Error>> {
     let db = open_db(repo_root)?;
-    let mut response = temporal::analyze(repo_root, file_path, &db)?;
+    let (mut response, needs_background) = temporal::analyze(repo_root, file_path, &db)?;
     knowledge::enrich_with_memories(&db, &mut response.coupled_files);
     test_intents::enrich_with_test_intents(repo_root, &mut response.coupled_files);
     response.test_info = test_intents::discover_test_info(repo_root, file_path);
@@ -37,7 +46,12 @@ pub fn analyze(
         eprintln!("Warning: Failed to record analysis metrics: {}", e);
     }
 
-    Ok(response)
+    Ok(AnalyzeResult {
+        response,
+        needs_background,
+        repo_root: repo_root.to_path_buf(),
+        file_path: file_path.to_string(),
+    })
 }
 
 pub fn add_note(

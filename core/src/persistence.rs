@@ -3,6 +3,22 @@ use std::path::Path;
 
 use crate::types::Memory;
 
+/// Persisted state for the adaptive indexing engine.
+/// Single-row table (id=1) tracking progress across process restarts.
+#[derive(Debug, Clone)]
+pub struct IndexingState {
+    pub head_commit: String,
+    pub resume_oid: Option<String>,
+    pub commits_indexed: u32,
+    pub strategy: String,
+    pub is_complete: bool,
+    pub last_updated: i64,
+    /// The file being analyzed (for PathFiltered strategy).
+    /// Used to detect when a subsequent call targets a different file,
+    /// requiring a fresh walk instead of resuming the old one.
+    pub target_path: Option<String>,
+}
+
 pub struct Database {
     conn: Connection,
 }
@@ -14,7 +30,7 @@ impl Database {
         let conn = Connection::open(path)?;
         let db = Self { conn };
         db.init()?;
-        db.migrate()?;
+
         Ok(db)
     }
 
@@ -41,9 +57,15 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_temporal_file
                 ON temporal_index(file_path);
 
-            CREATE TABLE IF NOT EXISTS watermark (
-                id          INTEGER PRIMARY KEY CHECK (id = 1),
-                last_commit TEXT NOT NULL
+            CREATE TABLE IF NOT EXISTS indexing_state (
+                id               INTEGER PRIMARY KEY CHECK (id = 1),
+                head_commit      TEXT NOT NULL,
+                resume_oid       TEXT,
+                commits_indexed  INTEGER NOT NULL DEFAULT 0,
+                strategy         TEXT NOT NULL DEFAULT 'global',
+                is_complete      INTEGER NOT NULL DEFAULT 0,
+                last_updated     INTEGER NOT NULL DEFAULT 0,
+                target_path      TEXT
             );
 
             CREATE TABLE IF NOT EXISTS memories (
@@ -82,32 +104,6 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON metrics_events(timestamp);
             CREATE INDEX IF NOT EXISTS idx_metrics_repo ON metrics_events(repo_root);",
         )?;
-        Ok(())
-    }
-
-    /// Migrate existing databases that lack the commit_timestamp column.
-    fn migrate(&self) -> Result<(), rusqlite::Error> {
-        let has_timestamp = {
-            let mut stmt = self.conn.prepare("PRAGMA table_info(temporal_index)")?;
-            let cols = stmt.query_map([], |row| row.get::<_, String>(1))?;
-            let mut found = false;
-            for col in cols {
-                if col? == "commit_timestamp" {
-                    found = true;
-                    break;
-                }
-            }
-            found
-        };
-
-        if !has_timestamp {
-            self.conn.execute_batch(
-                "ALTER TABLE temporal_index ADD COLUMN commit_timestamp INTEGER NOT NULL DEFAULT 0;"
-            )?;
-            // Clear watermark to force re-index so timestamps get populated
-            self.conn.execute_batch("DELETE FROM watermark;")?;
-        }
-
         Ok(())
     }
 
@@ -234,26 +230,56 @@ impl Database {
         Ok(count)
     }
 
-    /// Get the watermark (last indexed commit SHA).
-    pub fn get_watermark(&self) -> Result<Option<String>, rusqlite::Error> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT last_commit FROM watermark WHERE id = 1")?;
-        let result = stmt.query_row([], |row| row.get::<_, String>(0));
+    /// Get the current indexing state, if any.
+    pub fn get_indexing_state(&self) -> Result<Option<IndexingState>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT head_commit, resume_oid, commits_indexed, strategy, is_complete, last_updated, target_path
+             FROM indexing_state WHERE id = 1",
+        )?;
+        let result = stmt.query_row([], |row| {
+            Ok(IndexingState {
+                head_commit: row.get(0)?,
+                resume_oid: row.get(1)?,
+                commits_indexed: row.get(2)?,
+                strategy: row.get(3)?,
+                is_complete: row.get::<_, i32>(4)? != 0,
+                last_updated: row.get(5)?,
+                target_path: row.get(6)?,
+            })
+        });
         match result {
-            Ok(hash) => Ok(Some(hash)),
+            Ok(state) => Ok(Some(state)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
         }
     }
 
-    /// Set the watermark (last indexed commit SHA).
-    pub fn set_watermark(&self, commit_hash: &str) -> Result<(), rusqlite::Error> {
+    /// Insert or replace the indexing state.
+    pub fn set_indexing_state(&self, state: &IndexingState) -> Result<(), rusqlite::Error> {
         self.conn.execute(
-            "INSERT OR REPLACE INTO watermark (id, last_commit) VALUES (1, ?1)",
-            params![commit_hash],
+            "INSERT OR REPLACE INTO indexing_state
+             (id, head_commit, resume_oid, commits_indexed, strategy, is_complete, last_updated, target_path)
+             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                state.head_commit,
+                state.resume_oid,
+                state.commits_indexed,
+                state.strategy,
+                state.is_complete as i32,
+                state.last_updated,
+                state.target_path,
+            ],
         )?;
         Ok(())
+    }
+
+    /// Returns true if no indexing has been done yet (no indexing_state row).
+    pub fn is_first_index_call(&self) -> Result<bool, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT COUNT(*) FROM indexing_state WHERE id = 1",
+        )?;
+        let count: i32 = stmt.query_row([], |row| row.get(0))?;
+        Ok(count == 0)
     }
 
     /// Add a memory (note) for a file, optionally scoped to a symbol.
@@ -471,14 +497,85 @@ mod tests {
     }
 
     #[test]
-    fn test_watermark() {
+    fn test_indexing_state_roundtrip() {
         let db = Database::in_memory().unwrap();
 
-        assert_eq!(db.get_watermark().unwrap(), None);
-        db.set_watermark("abc123").unwrap();
-        assert_eq!(db.get_watermark().unwrap(), Some("abc123".to_string()));
-        db.set_watermark("def456").unwrap();
-        assert_eq!(db.get_watermark().unwrap(), Some("def456".to_string()));
+        assert!(db.get_indexing_state().unwrap().is_none());
+        assert!(db.is_first_index_call().unwrap());
+
+        let state = IndexingState {
+            head_commit: "abc123".to_string(),
+            resume_oid: Some("def456".to_string()),
+            commits_indexed: 500,
+            strategy: "path_filtered".to_string(),
+            is_complete: false,
+            last_updated: 1700000000,
+            target_path: Some("kernel/sched/core.c".to_string()),
+        };
+        db.set_indexing_state(&state).unwrap();
+
+        let loaded = db.get_indexing_state().unwrap().unwrap();
+        assert_eq!(loaded.head_commit, "abc123");
+        assert_eq!(loaded.resume_oid, Some("def456".to_string()));
+        assert_eq!(loaded.commits_indexed, 500);
+        assert_eq!(loaded.strategy, "path_filtered");
+        assert!(!loaded.is_complete);
+        assert_eq!(loaded.last_updated, 1700000000);
+        assert_eq!(loaded.target_path, Some("kernel/sched/core.c".to_string()));
+        assert!(!db.is_first_index_call().unwrap());
+    }
+
+    #[test]
+    fn test_indexing_state_overwrite() {
+        let db = Database::in_memory().unwrap();
+
+        let state1 = IndexingState {
+            head_commit: "aaa".to_string(),
+            resume_oid: None,
+            commits_indexed: 100,
+            strategy: "global".to_string(),
+            is_complete: false,
+            last_updated: 1000,
+            target_path: None,
+        };
+        db.set_indexing_state(&state1).unwrap();
+
+        let state2 = IndexingState {
+            head_commit: "bbb".to_string(),
+            resume_oid: None,
+            commits_indexed: 1000,
+            strategy: "global".to_string(),
+            is_complete: true,
+            last_updated: 2000,
+            target_path: None,
+        };
+        db.set_indexing_state(&state2).unwrap();
+
+        let loaded = db.get_indexing_state().unwrap().unwrap();
+        assert_eq!(loaded.head_commit, "bbb");
+        assert!(loaded.is_complete);
+        assert_eq!(loaded.commits_indexed, 1000);
+    }
+
+    #[test]
+    fn test_stale_lock_detection() {
+        let db = Database::in_memory().unwrap();
+
+        let state = IndexingState {
+            head_commit: "abc".to_string(),
+            resume_oid: Some("def".to_string()),
+            commits_indexed: 50,
+            strategy: "global".to_string(),
+            is_complete: false,
+            last_updated: 1000, // Very old timestamp
+            target_path: None,
+        };
+        db.set_indexing_state(&state).unwrap();
+
+        let loaded = db.get_indexing_state().unwrap().unwrap();
+        let now = 1020; // 20 seconds later
+        let is_stale = !loaded.is_complete && (now - loaded.last_updated) > 10;
+        assert!(is_stale, "Should detect stale incomplete indexing state");
     }
 
     #[test]

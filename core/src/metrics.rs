@@ -129,6 +129,7 @@ mod tests {
             commit_count: 15,
             analysis_time_ms: 150,
             test_info: None,
+            indexing_status: None,
         };
 
         record_analysis_event(&db, &response, "/repo").unwrap();
@@ -185,6 +186,7 @@ mod tests {
             commit_count: 10,
             analysis_time_ms: 100,
             test_info: None,
+            indexing_status: None,
         };
 
         record_analysis_event(&db, &response, "/repo").unwrap();
@@ -241,6 +243,7 @@ mod tests {
             commit_count: 5,
             analysis_time_ms: 100,
             test_info: None,
+            indexing_status: None,
         };
 
         record_analysis_event(&db, &response, "/repo").unwrap();
@@ -261,6 +264,7 @@ mod tests {
             commit_count: 5,
             analysis_time_ms: 100,
             test_info: None,
+            indexing_status: None,
         };
 
         let response2 = AnalysisResponse {
@@ -270,6 +274,7 @@ mod tests {
             commit_count: 10,
             analysis_time_ms: 200,
             test_info: None,
+            indexing_status: None,
         };
 
         record_analysis_event(&db, &response1, "/repo1").unwrap();
@@ -296,6 +301,7 @@ mod tests {
                 commit_count: 5,
                 analysis_time_ms: 100 + (i as u64 * 50),
                 test_info: None,
+                indexing_status: None,
             };
             record_analysis_event(&db, &response, "/repo").unwrap();
         }

@@ -9,7 +9,8 @@
     "test:core": "export PATH=\"$HOME/.cargo/bin:$PATH\" && cd core && cargo test",
     "test:adapter": "cd adapter && npm test",
     "test:e2e": "cd e2e && npm test",
-    "test:all": "npm run test:core && npm run test:adapter && npm run test:e2e"
+    "test:all": "npm run test:core && npm run test:adapter && npm run test:e2e",
+    "test:all-local": "npm run test:all && export PATH=\"$HOME/.cargo/bin:$PATH\" && cd core && cargo test --release --test perf_linux -- --ignored --test-threads=1"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.3"
