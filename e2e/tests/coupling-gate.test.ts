@@ -28,7 +28,7 @@ describe("coupling-gate: prevent low-coupling files from being Critical", () => 
     const text = result.content[0].text!;
     const data = JSON.parse(text);
 
-    // HighChurnLowCoupling.ts: 8/20 = 40% coupling, but 108 total commits (high churn) + recent
+    // HighChurnLowCoupling.ts: 9/28 = 32% coupling, but 109 total commits (high churn) + recent
     const highChurn = data.coupled_files.find(
       (f: any) => f.path === "src/HighChurnLowCoupling.ts"
     );
@@ -56,7 +56,7 @@ describe("coupling-gate: prevent low-coupling files from being Critical", () => 
     const text = result.content[0].text!;
     const data = JSON.parse(text);
 
-    // HighCouplingFile.ts: 15/20 = 75% coupling + recent changes
+    // HighCouplingFile.ts: 16/28 = 57% coupling + recent changes
     const highCoupling = data.coupled_files.find(
       (f: any) => f.path === "src/HighCouplingFile.ts"
     );

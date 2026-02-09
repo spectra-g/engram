@@ -5,22 +5,25 @@ import { createRepo, type CommitSpec } from "../repo-generator.js";
  * should be capped at risk_score 0.79 (High risk max) even if their
  * churn + recency would push them to >= 0.8 (Critical).
  *
- * Setup:
- * - Target.ts: committed 20 times
+ * Setup (including the initial commit that co-commits all files):
+ * - Target.ts: committed 28 times
  * - HighChurnLowCoupling.ts:
- *   - Co-committed with Target.ts only 8 times (40% coupling)
- *   - But has 100 solo commits (very high churn)
- *   - All changes are recent
- *   - Without gate: would score >= 0.8
- *   - With gate: capped at 0.79 (High risk)
+ *   - Co-committed with Target.ts 9 times (32% coupling, < 50%)
+ *   - But has 109 total commits (very high churn)
+ *   - Co-changes are the most recent commits (ensures high recency)
+ *   - With gate: capped at High risk even with high churn + recency
  * - HighCouplingFile.ts:
- *   - Co-committed with Target.ts 15 times (75% coupling)
- *   - Should be able to reach Critical (>= 0.8) if other factors are high
+ *   - Co-committed with Target.ts 16 times (57% coupling, >= 50%)
+ *   - Can reach Critical (>= 0.8) if other factors are high
+ *
+ * Phase ordering matters for recency: HighChurn co-commits are LAST so
+ * their `last_timestamp` matches the repo's newest commit, guaranteeing
+ * high recency regardless of CI timing / git second-precision timestamps.
  */
 export function createCouplingGateRepo(): string {
   const commits: CommitSpec[] = [];
 
-  // Initial commit
+  // Initial commit (all 3 files co-committed)
   commits.push({
     files: {
       "src/Target.ts": "// Target v0\nexport class Target {}",
@@ -30,7 +33,7 @@ export function createCouplingGateRepo(): string {
     message: "initial commit",
   });
 
-  // Phase 1: HighChurnLowCoupling gets 100 solo commits (high churn, recent)
+  // Phase 1: HighChurnLowCoupling gets 100 solo commits (high churn)
   for (let i = 1; i <= 100; i++) {
     commits.push({
       files: {
@@ -40,19 +43,8 @@ export function createCouplingGateRepo(): string {
     });
   }
 
-  // Phase 2: HighChurnLowCoupling co-committed with Target 8 times (40% coupling)
-  for (let i = 101; i <= 108; i++) {
-    commits.push({
-      files: {
-        "src/Target.ts": `// Target v${i}\nexport class Target { version = ${i}; }`,
-        "src/HighChurnLowCoupling.ts": `// HighChurn v${i}\nexport class HighChurn { version = ${i}; }`,
-      },
-      message: `co-change: target + high-churn v${i}`,
-    });
-  }
-
-  // Phase 3: HighCouplingFile co-committed with Target 15 times (75% coupling)
-  for (let i = 109; i <= 123; i++) {
+  // Phase 2: HighCouplingFile co-committed with Target 15 times
+  for (let i = 101; i <= 115; i++) {
     commits.push({
       files: {
         "src/Target.ts": `// Target v${i}\nexport class Target { version = ${i}; }`,
@@ -62,13 +54,25 @@ export function createCouplingGateRepo(): string {
     });
   }
 
-  // Phase 4: A few more Target solo commits to reach 20 total
-  for (let i = 124; i <= 127; i++) {
+  // Phase 3: A few solo Target commits
+  for (let i = 116; i <= 119; i++) {
     commits.push({
       files: {
         "src/Target.ts": `// Target v${i}\nexport class Target { version = ${i}; }`,
       },
       message: `solo: update target v${i}`,
+    });
+  }
+
+  // Phase 4: HighChurnLowCoupling co-committed with Target 8 times (LAST phase
+  // so co-change timestamps are the most recent — robust against CI timing)
+  for (let i = 120; i <= 127; i++) {
+    commits.push({
+      files: {
+        "src/Target.ts": `// Target v${i}\nexport class Target { version = ${i}; }`,
+        "src/HighChurnLowCoupling.ts": `// HighChurn v${i}\nexport class HighChurn { version = ${i}; }`,
+      },
+      message: `co-change: target + high-churn v${i}`,
     });
   }
 
