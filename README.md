@@ -4,12 +4,12 @@
 
 Engram gives your AI agent the context it can’t see in the code alone.
 
-While LLMs are excellent at analyzing the specific files you give them, they lack the broader context of your repository's history and guardrails. Engram bridges this gap by surfacing hidden dependencies (via git history) and required behaviors (via test intents) that the AI would otherwise not have access to, miss or ignore.
+While LLMs are excellent at analyzing the specific files you give them, they lack the broader context of your repository's history and guardrails. Engram bridges this gap by surfacing hidden dependencies (via git history) and required behaviours (via test intents) that the AI would otherwise not have access to, miss or ignore.
 
 ## Why Engram?
 
 *    **Temporal Coupling:** Answers *"What usually changes when this file changes?"* to prevent the "fix one thing, break another" cycle.
-*    **Behavioural Guardrails:** extracts "Test Intents" (e.g., "should handle negative balance") so the AI understands *what* to preserve, not just *how* to code.
+*    **Behavioural Guardrails:** extracts "Test Intents" (e.g., "should handle negative balance") so the AI understands *what* to preserve.
 *    **Nuance Capture:** Provides a lightweight store for you or the LLM to record undocumented architectural constraints, ensuring lessons learned aren't lost when you start a new conversation.
 
 ### Built for Privacy. Public for Integrity.
@@ -169,18 +169,9 @@ This installs the necessary binary for your platform (macOS, Linux, Windows) and
 Engram is an [MCP server](https://modelcontextprotocol.io/) and works with any MCP-compatible client.
 
 ### Claude Desktop
-Add this to your `claude_desktop_config.json`:
 
-```json
-{
-  "mcpServers": {
-    "engram": {
-      "command": "npx",
-      "args": ["-y", "@spectra-g/engram-adapter"]
-    }
-  }
-}
-
+```bash
+claude mcp add --scope user --transport stdio engram -- npx -y @spectra-g/engram-adapter
 ```
 
 ### Cursor
@@ -194,24 +185,27 @@ Settings > General > MCP Servers > Add New MCP Server:
 
 To ensure your AI uses Engram effectively, add this to your project rules (`.cursorrules` or `CLAUDE.md`).
 
-* *Note on Step 4:** This step ensures the AI considers your tests. If you want the AI to strictly update tests, append *"You MUST update these tests if logic changes"* to point 4.
-
 ```markdown
 ## Engram Workflow Policy
-You have access to a tool called `engram`. You MUST follow this workflow for code modification requests:
+You have access to a tool called `engram` (specifically `get_impact_analysis` and `save_project_note`).
+You MUST follow this strictly sequential workflow for EVERY code modification request:
 
-### Phase 1: Context Gathering
-1.   **Blast Radius Check**: ALWAYS call `get_impact_analysis` on the target file(s) first.
-2.   **Review Coupling**: If the analysis shows High/Critical risk coupled files, read those files to prevent regressions.
-3.   **Check Notes**: Review any "Memories" returned in the analysis.
-4.   **Review Test Intents**: Look at the `test_intents` in the analysis. Use these descriptions to understand the *required behaviour* of the code before modifying it.
+### Phase 1: Analysis (MANDATORY START)
+1.  **Blast Radius Check**: Before reading code or proposing changes, you MUST call `get_impact_analysis` on the target file(s).
+2.  **Context Loading**:
+    *   **Coupling**: If "High" or "Critical" risk files are returned, evaluate if they are *functionally related*.
+        *   *Action:* Read the file (`read_file`) if it poses a logical regression risk.
+        *   *Ignore:* Skip files that appear coincidental (e.g., lockfiles, gitignore, bulk formatting updates).
+    *   **Memories**: Pay close attention to any "Memories" returned in the analysis summary.
+    *   **Tests**: If `test_intents` are present, treat them as strict behavioural constraints. If absent, proceed with standard code analysis.
 
 ### Phase 2: Execution
-5.   **Fix/Refactor**: Proceed with changes, ensuring you don't violate the test intents found in Step 4.
+3.  **Fix/Refactor**: Proceed with the code changes. Update tests if the behaviour is intentionally changing.
 
-### Phase 3: Knowledge Capture
-6.   **Save Learnings**: If you discover a non-obvious "gotcha," architectural constraint, or hidden dependency, use `save_project_note` to persist this for future agents.
-
+### Phase 3: Knowledge Capture (MANDATORY END)
+4.  **Save Learnings**: Before finishing, ask: *"Would a future developer be **surprised** by something I discovered?"*
+    *   **IF YES** (Hidden dependencies, non-obvious bugs, env quirks): You MUST use `save_project_note`.
+    *   **IF NO** (Typos, standard refactors, documented behaviour): Do NOT save a note.
 ```
 
 ## Development & Benchmarking
