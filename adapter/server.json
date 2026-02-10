@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.spectra-g/engram",
+  "description": "MCP adapter for Engram - organizational memory for AI agents",
+  "repository": {
+    "url": "https://github.com/spectra-g/engram",
+    "source": "github",
+    "subfolder": "adapter"
+  },
+  "version": "0.2.10",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@spectra-g/engram-adapter",
+      "version": "0.2.10",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
