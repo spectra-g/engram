@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "engram": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@spectra-g/engram-adapter"
+      ],
+      "env": {},
+      "title": "Engram",
+      "description": "Repo-aware context and impact analysis engine.",
+      "sourceUrl": "https://github.com/spectra-g/engram"
+    }
+  }
+}

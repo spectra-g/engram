@@ -1,62 +1,28 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
   "name": "Engram",
-  "description": "Repo-aware memory and impact analysis tool. Tracks code coupling, risks, and project notes using a libSQL backend.",
+  "description": "The 'Missing Context' engine. Analyzes git history for temporal coupling and extracts test intents to provide behavioral guardrails for AI agents.",
   "type": "mcp_server",
-  "status": "beta",
-  "framework": "Rust Core / Node.js Adapter",
+  "status": "stable",
+  "framework": "Rust / Node.js",
   "transport": ["stdio"],
-  "keywords": ["impact-analysis", "code-memory", "libsql", "developer-tools", "rust"],
+  "keywords": ["git-analysis", "impact-analysis", "context-memory", "libsql", "rust"],
   "maintainers": ["spectra-g"],
   "tools": [
     {
       "name": "get_impact_analysis",
-      "description": "Analyzes a file to determine its coupling with other files and potential change risks based on commit history.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "file_path": { "type": "string", "description": "Relative path to the file in the repo" },
-          "repo_root": { "type": "string", "description": "Absolute path to the repository root" }
-        },
-        "required": ["file_path", "repo_root"]
-      }
+      "description": "MANDATORY START: Analyzes file coupling and risk scores. Returns blast radius and test intents for a target file."
     },
     {
       "name": "save_project_note",
-      "description": "Saves a contextual note or 'memory' about a specific file in the project.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "file_path": { "type": "string" },
-          "note": { "type": "string" },
-          "repo_root": { "type": "string" }
-        },
-        "required": ["file_path", "note", "repo_root"]
-      }
+      "description": "MANDATORY END: Saves discovered architectural constraints or hidden dependencies as persistent memories."
     },
     {
       "name": "read_project_notes",
-      "description": "Retrieves saved notes, optionally filtered by search query or specific file path.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "repo_root": { "type": "string" },
-          "query": { "type": "string", "description": "Optional search term" },
-          "file_path": { "type": "string", "description": "Optional file filter" }
-        },
-        "required": ["repo_root"]
-      }
-    },
-    {
-      "name": "get_usage_metrics",
-      "description": "Provides repository-wide metrics including total analyses, risk distribution, and test intent extraction.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "repo_root": { "type": "string" }
-        },
-        "required": ["repo_root"]
-      }
+      "description": "Retrieves saved context filtered by query or file path."
     }
-  ]
+  ],
+  "installation": {
+    "command": "npx -y @spectra-g/engram-adapter"
+  }
 }
