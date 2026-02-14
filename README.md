@@ -9,7 +9,7 @@ While LLMs are excellent at analyzing the specific files you give them, they lac
 ## Why Engram?
 
 *    **Temporal History:** Answers *"What usually changes when this file changes?"* to prevent the "fix one thing, break another" cycle.
-*    **Test Intent:** Extracts test intent strings (e.g., "should handle negative balance") so the AI understands *what behaviour* to preserve.
+*    **Test Intent:** Extracts test intent strings (e.g., "should handle negative balance") so the AI understands what *behaviour* to preserve.
 *    **Organizational Memory:** A persistent store for you or the LLM to record undocumented architectural constraints, ensuring lessons learned aren't lost when you start a new conversation.
 
 ### Built for Privacy. Public for Integrity.
@@ -20,7 +20,11 @@ While LLMs are excellent at analyzing the specific files you give them, they lac
 
 ## Real-World Example: The Bug That Tests Can't Catch
 
-A TypeScript service (`TransactionExportService`) writes pipe-delimited lines like `TXN-001|2024-11-15|250.00|COMPLETED`. A legacy JavaScript cron job (`legacy-mainframe-sync.js`) parses them using **hardcoded array indices** — `parts[2]` for amount, `parts[3]` for status. There are zero imports between them. No shared types. Nothing in the code connects them.
+A TypeScript service (`TransactionExportService`) writes pipe-delimited lines like `TXN-001|2024-11-15|250.00|COMPLETED`. 
+
+A legacy JavaScript cron job (`legacy-mainframe-sync.js`) parses them using **hardcoded array indices** - `parts[2]` for amount, `parts[3]` for status. 
+
+There are zero imports between them. No shared types. Nothing in the code connects them.
 
 **The task:** *"Add a `currency` field next to the amount."*
 
@@ -181,22 +185,11 @@ We take performance seriously. Engram is benchmarked against the [Linux Kernel](
 *    **Low Footprint:** No heavy background daemons. Indexing happens on-demand within strict time budgets, utilizing `rusqlite` and WAL mode for high-throughput concurrency.
 *    **Smart Filtering:** Automatically ignores noise like lockfiles, binary assets, and auto-generated code to keep the signal high.
 
-## Installation
-
-To use Engram with your AI agent (Claude Desktop, Cursor, etc.), you need to expose the tool capabilities to them.
-
-```bash
-npm install -g @spectra-g/engram-adapter
-
-```
-
-This installs the necessary binary for your platform (macOS, Linux, Windows) and the MCP adapter that communicates with your AI.
-
 ## Setup
 
 Engram is an [MCP server](https://modelcontextprotocol.io/) and works with any MCP-compatible client.
 
-### Claude Desktop
+### Claude Code
 
 ```bash
 claude mcp add --scope user --transport stdio engram -- npx -y @spectra-g/engram-adapter
