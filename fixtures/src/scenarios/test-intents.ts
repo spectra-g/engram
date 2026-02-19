@@ -131,3 +131,83 @@ describe('Base64Tool', () => {
 
   return createRepo({ commits });
 }
+
+/**
+ * Creates a repo for testing JVM test intent extraction.
+ */
+export function createJvmTestIntentsRepo(): string {
+  const javaTestContent = `
+package com.example;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+
+class AuthTest {
+    @Test
+    @DisplayName("should login with valid credentials")
+    void loginTest() {}
+
+    @Test
+    void testRejectInvalidPassword() {}
+
+    @Test
+    void shouldHandleOAuthCallback() {}
+}
+`;
+
+  const kotlinSpecContent = `
+package com.example
+import io.kotest.core.spec.style.StringSpec
+
+class AuthSpec : StringSpec({
+    "should refresh tokens" {
+    }
+})
+`;
+
+  const scalaSpecContent = `
+package com.example
+import org.scalatest.flatspec.AnyFlatSpec
+
+class AuthSpec extends AnyFlatSpec {
+  "Auth" should "logout" in {
+  }
+}
+`;
+
+  const commits: CommitSpec[] = [
+    {
+      files: {
+        "src/main/java/com/example/Auth.java": "package com.example; public class Auth {}",
+        "src/test/java/com/example/AuthTest.java": javaTestContent,
+        "src/main/kotlin/com/example/Session.kt": "package com.example; class Session",
+        "src/test/kotlin/com/example/AuthSpec.kt": kotlinSpecContent,
+        "src/main/scala/com/example/Logger.scala": "package com.example; class Logger",
+        "src/test/scala/com/example/AuthSpec.scala": scalaSpecContent,
+      },
+      message: "initial jvm commit",
+    },
+    {
+      files: {
+        "src/main/java/com/example/Auth.java": "package com.example; public class Auth { // v1 }",
+        "src/test/java/com/example/AuthTest.java": javaTestContent + "\n// v1",
+      },
+      message: "update java auth and tests",
+    },
+    {
+      files: {
+        "src/main/kotlin/com/example/Session.kt": "package com.example; class Session { // v1 }",
+        "src/test/kotlin/com/example/AuthSpec.kt": kotlinSpecContent + "\n// v1",
+      },
+      message: "update kotlin session and tests",
+    },
+    {
+      files: {
+        "src/main/scala/com/example/Logger.scala": "package com.example; class Logger { // v1 }",
+        "src/test/scala/com/example/AuthSpec.scala": scalaSpecContent + "\n// v1",
+      },
+      message: "update scala logger and tests",
+    },
+  ];
+
+  return createRepo({ commits });
+}

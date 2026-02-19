@@ -59,6 +59,12 @@ Now every future agent gets this warning automatically - before it writes a sing
 **2. Validation Graph**
 *    **What:** Automatically locates relevant tests and extracts their specific intent strings (e.g., `it("should validate JWT expiration")`).
 *    **Why:** To provide behavioural guardrails. The AI can check its plan against your existing test requirements without needing to read the full test suite.
+*    **Supported Frameworks:**
+     *   **JS/TS:** Vitest, Jest, Mocha, Playwright, Cypress (`it`, `test`, `describe`)
+     *   **JVM (Java/Kotlin/Scala):** JUnit 4, JUnit 5 (@DisplayName), Kotest, ScalaTest
+     *   **Rust:** Native `#[test]`
+     *   **Python:** Pytest, Unittest (`def test_...`)
+     *   **Go:** Native `func Test...`
 
 **3. Knowledge Graph**
 *    **What:** A persistent store where the LLM can save/retrieve "memories" about architectural decisions, edge cases, or project quirks.
