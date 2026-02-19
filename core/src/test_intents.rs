@@ -24,12 +24,27 @@ static GO_TEST_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"func\s+(Test\w+)\s*\(").unwrap()
 });
 
+static JAVA_TEST_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?:@DisplayName\(\s*"([^"]*)"\s*\)|void\s+((?:test|should)\w+)\s*\()"#).unwrap()
+});
+
+static KOTLIN_TEST_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""([^"]*)"\s*\{"#).unwrap()
+});
+
+static SCALA_TEST_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#""([^"]*)"\s*in\s*\{"#).unwrap()
+});
+
 /// Language classification for test regex selection.
 enum TestLang {
     JsTs,
     Rust,
     Python,
     Go,
+    Java,
+    Kotlin,
+    Scala,
 }
 
 /// Select the appropriate test language and regex for a file path.
@@ -51,6 +66,12 @@ fn detect_test_language(path: &str) -> Option<(TestLang, &'static Regex)> {
         Some((TestLang::Python, &PYTHON_TEST_RE))
     } else if filename.ends_with(".go") {
         Some((TestLang::Go, &GO_TEST_RE))
+    } else if filename.ends_with(".java") {
+        Some((TestLang::Java, &JAVA_TEST_RE))
+    } else if filename.ends_with(".kt") {
+        Some((TestLang::Kotlin, &KOTLIN_TEST_RE))
+    } else if filename.ends_with(".scala") {
+        Some((TestLang::Scala, &SCALA_TEST_RE))
     } else {
         None
     }
@@ -85,6 +106,17 @@ pub fn is_test_file(path: &str) -> bool {
         return true;
     }
 
+    // JVM: *Test.java, *Tests.java, *Test.kt, *Tests.kt, *Spec.kt, *Spec.scala
+    if filename.ends_with("Test.java")
+        || filename.ends_with("Tests.java")
+        || filename.ends_with("Test.kt")
+        || filename.ends_with("Tests.kt")
+        || filename.ends_with("Spec.kt")
+        || filename.ends_with("Spec.scala")
+    {
+        return true;
+    }
+
     // JS/TS: files inside a __tests__/ directory
     if path.contains("__tests__/")
         && (filename.ends_with(".ts")
@@ -108,9 +140,24 @@ pub fn is_test_file(path: &str) -> bool {
 fn humanize(name: &str) -> String {
     let stripped = name
         .strip_prefix("test_")
+        .or_else(|| name.strip_prefix("test"))
         .or_else(|| name.strip_prefix("Test"))
         .unwrap_or(name);
-    stripped.replace('_', " ")
+
+    if !stripped.contains('_') {
+        let mut result = String::new();
+        for (i, c) in stripped.chars().enumerate() {
+            if i > 0 && c.is_uppercase() {
+                result.push(' ');
+                result.push(c.to_ascii_lowercase());
+            } else {
+                result.push(c.to_ascii_lowercase());
+            }
+        }
+        result.trim().to_string()
+    } else {
+        stripped.replace('_', " ").to_lowercase().trim().to_string()
+    }
 }
 
 /// Extract test intent titles from file content using regex.
@@ -124,8 +171,15 @@ pub fn extract_test_intents(content: &str, path: &str) -> Vec<TestIntent> {
 
     for cap in re.captures_iter(content) {
         let title = match lang {
-            // JS/TS uses three capture groups (single-quote, double-quote, backtick)
-            TestLang::JsTs => cap.get(1).or_else(|| cap.get(2)).or_else(|| cap.get(3)).map(|m| m.as_str().to_string()),
+            // JS/TS, Kotlin, Scala use string-based descriptions
+            TestLang::JsTs | TestLang::Kotlin | TestLang::Scala => {
+                cap.get(1).or_else(|| cap.get(2)).or_else(|| cap.get(3)).map(|m| m.as_str().to_string())
+            },
+            // Java uses @DisplayName (string) or method name (needs humanize)
+            TestLang::Java => {
+                cap.get(1).map(|m| m.as_str().to_string())
+                    .or_else(|| cap.get(2).map(|m| humanize(m.as_str())))
+            },
             // All other languages use group 1 with humanized names
             _ => cap.get(1).map(|m| humanize(m.as_str())),
         };
@@ -195,6 +249,15 @@ pub fn find_test_files(repo_root: &Path, source_path: &str) -> Vec<String> {
         candidates.push(Path::new("tests").join(format!("test_{stem}.py")).display().to_string());
     } else if let Some(stem) = filename.strip_suffix(".go") {
         candidates.push(parent.join(format!("{stem}_test.go")).display().to_string());
+    } else if let Some(stem) = filename.strip_suffix(".java") {
+        candidates.push(parent.join(format!("{stem}Test.java")).display().to_string());
+        candidates.push(parent.join(format!("{stem}Tests.java")).display().to_string());
+    } else if let Some(stem) = filename.strip_suffix(".kt") {
+        candidates.push(parent.join(format!("{stem}Test.kt")).display().to_string());
+        candidates.push(parent.join(format!("{stem}Tests.kt")).display().to_string());
+        candidates.push(parent.join(format!("{stem}Spec.kt")).display().to_string());
+    } else if let Some(stem) = filename.strip_suffix(".scala") {
+        candidates.push(parent.join(format!("{stem}Spec.scala")).display().to_string());
     } else if let Some(stem) = filename.strip_suffix(".rs") {
         candidates.push(parent.join("tests").join(format!("{stem}.rs")).display().to_string());
         // Crate-level tests directory
@@ -316,7 +379,18 @@ mod tests {
         assert!(!is_test_file("src/main.rs"));
         assert!(!is_test_file("pkg/auth/auth.go"));
         assert!(!is_test_file("src/utils.py"));
+        assert!(!is_test_file("Auth.java"));
         assert!(!is_test_file("README.md"));
+    }
+
+    #[test]
+    fn test_detects_jvm_test_files() {
+        assert!(is_test_file("src/AuthTest.java"));
+        assert!(is_test_file("src/AuthTests.java"));
+        assert!(is_test_file("src/AuthTest.kt"));
+        assert!(is_test_file("src/AuthTests.kt"));
+        assert!(is_test_file("src/AuthSpec.kt"));
+        assert!(is_test_file("src/AuthSpec.scala"));
     }
 
     // --- extract_test_intents tests ---
@@ -386,8 +460,8 @@ func helperFunc() {}
 "#;
         let intents = extract_test_intents(content, "auth_test.go");
         assert_eq!(intents.len(), 2);
-        assert_eq!(intents[0].title, "LoginSuccess");
-        assert_eq!(intents[1].title, "SessionExpiry");
+        assert_eq!(intents[0].title, "login success");
+        assert_eq!(intents[1].title, "session expiry");
     }
 
     #[test]
@@ -405,6 +479,67 @@ describe("Many tests", () => {
 "#;
         let intents = extract_test_intents(content, "src/Auth.test.ts");
         assert_eq!(intents.len(), 5);
+    }
+
+    #[test]
+    fn test_extracts_java_test_intents() {
+        let content = r#"
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+
+class AuthTest {
+    @Test
+    @DisplayName("should login with valid credentials")
+    void loginTest() {}
+
+    @Test
+    void testRejectInvalidPassword() {}
+
+    @Test
+    void shouldHandleOAuthCallback() {}
+}
+"#;
+        let intents = extract_test_intents(content, "src/AuthTest.java");
+        assert_eq!(intents.len(), 3);
+        assert_eq!(intents[0].title, "should login with valid credentials");
+        assert_eq!(intents[1].title, "reject invalid password");
+        assert_eq!(intents[2].title, "should handle o auth callback");
+    }
+
+    #[test]
+    fn test_extracts_kotlin_test_intents() {
+        let content = r#"
+class AuthSpec : StringSpec({
+    "should login" {
+        // ...
+    }
+    "should logout" {
+        // ...
+    }
+})
+"#;
+        let intents = extract_test_intents(content, "src/AuthSpec.kt");
+        assert_eq!(intents.len(), 2);
+        assert_eq!(intents[0].title, "should login");
+        assert_eq!(intents[1].title, "should logout");
+    }
+
+    #[test]
+    fn test_extracts_scala_test_intents() {
+        let content = r#"
+class AuthSpec extends AnyFlatSpec {
+  "Auth" should "login" in {
+    // ...
+  }
+  "Auth" should "logout" in {
+    // ...
+  }
+}
+"#;
+        let intents = extract_test_intents(content, "src/AuthSpec.scala");
+        assert_eq!(intents.len(), 2);
+        assert_eq!(intents[0].title, "login");
+        assert_eq!(intents[1].title, "logout");
     }
 
     #[test]
@@ -643,6 +778,42 @@ describe("Auth", () => {
 
         let found = find_test_files(tmp.path(), "src/auth.rs");
         assert_eq!(found, vec!["tests/auth.rs"]);
+    }
+
+    #[test]
+    fn test_find_java_tests() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("Auth.java"), "class Auth {}").unwrap();
+        fs::write(src.join("AuthTest.java"), "class AuthTest {}").unwrap();
+
+        let found = find_test_files(tmp.path(), "src/Auth.java");
+        assert_eq!(found, vec!["src/AuthTest.java"]);
+    }
+
+    #[test]
+    fn test_find_kotlin_tests() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("Auth.kt"), "class Auth {}").unwrap();
+        fs::write(src.join("AuthSpec.kt"), "class AuthSpec {}").unwrap();
+
+        let found = find_test_files(tmp.path(), "src/Auth.kt");
+        assert_eq!(found, vec!["src/AuthSpec.kt"]);
+    }
+
+    #[test]
+    fn test_find_scala_tests() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("Auth.scala"), "class Auth {}").unwrap();
+        fs::write(src.join("AuthSpec.scala"), "class AuthSpec {}").unwrap();
+
+        let found = find_test_files(tmp.path(), "src/Auth.scala");
+        assert_eq!(found, vec!["src/AuthSpec.scala"]);
     }
 
     #[test]

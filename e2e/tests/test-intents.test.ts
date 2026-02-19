@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { McpTestClient } from "./helpers/mcp-client.js";
-import { createTestIntentsRepo, createDunderTestsRepo } from "../../fixtures/src/scenarios/test-intents.js";
+import { createTestIntentsRepo, createDunderTestsRepo, createJvmTestIntentsRepo } from "../../fixtures/src/scenarios/test-intents.js";
 import { CORE_BINARY_PATH } from "./setup.js";
 import { rmSync } from "node:fs";
 
@@ -142,5 +142,71 @@ describe("test-intents: proactive test discovery via __tests__/", () => {
     const data = JSON.parse(result.content[0].text!);
     expect(data.summary).toContain("Test coverage:");
     expect(data.summary).toContain("3 tests");
+  });
+});
+
+describe("test-intents: JVM test intent extraction", () => {
+  let client: McpTestClient;
+  let repoDir: string;
+
+  beforeAll(async () => {
+    repoDir = createJvmTestIntentsRepo();
+    client = new McpTestClient();
+    await client.connect({ coreBinaryPath: CORE_BINARY_PATH });
+  });
+
+  afterAll(async () => {
+    await client.close();
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it("should extract test intents from Java (JUnit 5)", async () => {
+    const result = await client.callTool("get_impact_analysis", {
+      file_path: "src/main/java/com/example/Auth.java",
+      repo_root: repoDir,
+    });
+
+    const data = JSON.parse(result.content[0].text!);
+    const testFile = data.coupled_files.find(
+      (f: { path: string }) => f.path === "src/test/java/com/example/AuthTest.java"
+    );
+
+    expect(testFile).toBeDefined();
+    const titles = testFile.test_intents.map((t: { title: string }) => t.title);
+    expect(titles).toContain("should login with valid credentials");
+    expect(titles).toContain("reject invalid password");
+    expect(titles).toContain("should handle o auth callback");
+  });
+
+  it("should extract test intents from Kotlin (Kotest)", async () => {
+    const result = await client.callTool("get_impact_analysis", {
+      file_path: "src/main/kotlin/com/example/Session.kt",
+      repo_root: repoDir,
+    });
+
+    const data = JSON.parse(result.content[0].text!);
+    const testFile = data.coupled_files.find(
+      (f: { path: string }) => f.path === "src/test/kotlin/com/example/AuthSpec.kt"
+    );
+
+    expect(testFile).toBeDefined();
+    const titles = testFile.test_intents.map((t: { title: string }) => t.title);
+    expect(titles).toContain("should refresh tokens");
+  });
+
+  it("should extract test intents from Scala (ScalaTest)", async () => {
+    const result = await client.callTool("get_impact_analysis", {
+      file_path: "src/main/scala/com/example/Logger.scala",
+      repo_root: repoDir,
+    });
+
+    const data = JSON.parse(result.content[0].text!);
+    const testFile = data.coupled_files.find(
+      (f: { path: string }) => f.path === "src/test/scala/com/example/AuthSpec.scala"
+    );
+
+    expect(testFile).toBeDefined();
+    const titles = testFile.test_intents.map((t: { title: string }) => t.title);
+    expect(titles).toContain("logout");
   });
 });
